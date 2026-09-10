@@ -1,300 +1,316 @@
 import time
 import pygame as pg
 import random
+import csv
 from pathlib import Path
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-FPS = 60
-CELL_SIZE = 100
-PADDING = 15
-GRID_CENTER_X = SCREEN_WIDTH // 2
-GRID_CENTER_Y = SCREEN_HEIGHT // 2
-STIMULUS_DURATION = 1.75
-ISI_DURATION = 1.0
-GAME_LENGTH = 12
-MATCH_COUNT = 3
+class NBackGame:
+
+    def __init__(self, config, stim=1.75, game_length=30, num_match=6):
+        self.SCREEN_WIDTH = 800
+        self.SCREEN_HEIGHT = 600
+        self.FPS = 60
+        self.CELL_SIZE = 100
+        self.PADDING = 15
+    
+        self.GRID_CENTER_X = self.SCREEN_WIDTH // 2
+        self.GRID_CENTER_Y = self.SCREEN_HEIGHT // 2
+    
+        self.STIMULUS_DURATION = stim
+        self.ISI_DURATION = 1.0
+        self.GAME_LENGTH = game_length
+        self.MATCH_COUNT = num_match
+        self.cfg = config
+        self.COLORS = {
+            "RED": (220, 50, 50),
+            "BLUE": (50, 100, 220),
+            "GREEN": (50, 200, 50),
+            "YELLOW": (230, 210, 50),
+            "BLACK": (0, 0, 0),
+            "DARK_GREY": (75, 75, 75),
+            "LIGHT_GREY": (180, 180, 180),
+            "WHITE": (255, 255, 255)
+        }
+
+        self.ACTIVE_COLORS = ["RED", "BLUE", "GREEN", "YELLOW"]
+
+        pg.init()
+        pg.mixer.init()
+        pg.font.init()
+        self.screen = pg.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
+        pg.display.set_caption("2-Back Game")
+        self.clock = pg.time.Clock()
+
+        # Load audio files
+        script_dir = Path(__file__).resolve().parent
+        audio_dir = script_dir.parent / "datafiles" / "audiofiles"
+
+        # Load font
+        self.font = pg.font.SysFont(None, 24)
+
+        TARGET_WORDS = ["DOG", "CAT", "COW", "DUCK", "SUN", "TOY", "BIN"]
+        self.AUDIO_FILES = {}
+
+        for word in TARGET_WORDS:
+            file_path = audio_dir / f"{word}.wav"
+            if file_path.exists():
+                self.AUDIO_FILES[word] = pg.mixer.Sound(str(file_path))
+            else:
+                print(f"Warning: {word}.wav not found at {file_path}.")
+        self.ACTIVE_AUDIO = list(self.AUDIO_FILES.keys())
+
+        self.is_target = {"color": False, "spatial": False, "audio": False } 
+        self.responses = {"color": False, "spatial": False, "audio": False }
+        self.feedback_states = {"color": "NEUTRAL", "spatial": "NEUTRAL", "audio": "NEUTRAL"}
+        self.turn_counter = 0
+
+        self.session_sequence = self.generate_sequence(self.GAME_LENGTH, self.MATCH_COUNT)
+        self.log_filename = "game_session_log.csv"
+        with open(self.log_filename, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["timestamp", "modality", "action", "performance_state"])
 
 
 # TODO bug in the generating sequence loop
 # TODO log all the info
-config = {
-    "n_back" : 2,
-    "use_color" : True,
-    "use_spatial" : False,
-    "use_audio" : True
-}
 
+    def draw_grid(self):
+        """Draws the 2-back grid centered on the given coordinates."""
+        grid_width = self.CELL_SIZE * 3
+        start_x = self.GRID_CENTER_X - (grid_width // 2)
+        start_y = self.GRID_CENTER_Y - (grid_width // 2)
 
-COLORS = {
-    "RED": (220, 50, 50),
-    "BLUE": (50, 100, 220),
-    "GREEN": (50, 200, 50),
-    "YELLOW": (230, 210, 50),
-    "BLACK": (0, 0, 0),
-    "DARK_GREY": (75, 75, 75),
-    "LIGHT_GREY": (180, 180, 180),
-    "WHITE": (255, 255, 255)
-}
+        line_color = self.COLORS["DARK_GREY"]
+        thickness = 4
 
-ACTIVE_COLORS = ["RED", "BLUE", "GREEN", "YELLOW"]
+        # horizontal lines
+        pg.draw.line(self.screen, line_color, (start_x , start_y + self.CELL_SIZE), (start_x + grid_width, start_y + self.CELL_SIZE), thickness)
+        pg.draw.line(self.screen, line_color, (start_x , start_y + self.CELL_SIZE * 2), (start_x + grid_width, start_y + self.CELL_SIZE * 2), thickness)
 
-pg.init()
-pg.mixer.init()
-pg.font.init()
-screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pg.display.set_caption("2-Back Game")
-clock = pg.time.Clock()
+        # vertical lines
+        pg.draw.line(self.screen, line_color, (start_x  + self.CELL_SIZE, start_y), (start_x + self.CELL_SIZE, start_y + grid_width), thickness)
+        pg.draw.line(self.screen, line_color, (start_x + self.CELL_SIZE * 2, start_y), (start_x + self.CELL_SIZE * 2, start_y + grid_width), thickness)
 
-# Load audio files
-script_dir = Path(__file__).resolve().parent
-audio_dir = script_dir.parent.parent / "datafiles" / "audiofiles"
+    def draw_color(self, color, coords):
+        """Fills a specific cell with a circle of a given color"""
+        start_x = int(self.GRID_CENTER_X - self.CELL_SIZE + (coords[0] * self.CELL_SIZE))
+        start_y = int(self.GRID_CENTER_Y - self.CELL_SIZE + (coords[1] * self.CELL_SIZE))
 
-# Load font
-font = pg.font.SysFont(None, 24)
+        radius = (self.CELL_SIZE // 2) - self.PADDING # PADDING is padding
+        pg.draw.circle(self.screen, color, (start_x, start_y), radius)
 
-TARGET_WORDS = ["DOG", "CAT", "COW", "DUCK", "SUN", "TOY", "BIN"]
-AUDIO_FILES = {}
+    def draw_legend(self):
+        """Draws the keybinds for the active configuration settings."""
+        active_settings = []
+        if self.cfg["use_color"]: active_settings.append(("COLOR [F]", "color"))
+        if self.cfg["use_spatial"]: active_settings.append(("SPATIAL [J]", "spatial"))
+        if self.cfg["use_audio"]: active_settings.append(("AUDIO [SPACE]", "audio"))
 
-for word in TARGET_WORDS:
-    file_path = audio_dir / f"{word}.wav"
-    if file_path.exists():
-        AUDIO_FILES[word] = pg.mixer.Sound(str(file_path))
-    else:
-        print(f"Warning: {word}.wav not found at {file_path}.")
-ACTIVE_AUDIO = list(AUDIO_FILES.keys())
+        if not active_settings:
+            return
 
-def draw_grid(surface):
-    """Draws the 2-back grid centered on the given coordinates."""
-    grid_width = CELL_SIZE * 3
-    start_x = GRID_CENTER_X - (grid_width // 2)
-    start_y = GRID_CENTER_Y - (grid_width // 2)
+        box_width, box_height = 140, 40
 
-    line_color = COLORS["DARK_GREY"]
-    thickness = 4
+        spacing = 20
+        total_width = len(active_settings) * box_width + (1 - len(active_settings)) * spacing
+        start_x = (self.SCREEN_WIDTH - total_width) // 2
+        start_y = self.SCREEN_HEIGHT - 70
 
-    # horizontal lines
-    pg.draw.line(surface, line_color, (start_x , start_y + CELL_SIZE), (start_x + grid_width, start_y + CELL_SIZE), thickness)
-    pg.draw.line(surface, line_color, (start_x , start_y + CELL_SIZE * 2), (start_x + grid_width, start_y + CELL_SIZE * 2), thickness)
+        for i, (label, mod_key) in enumerate(active_settings):
+            bx = start_x + i * (box_width + spacing)
+            by = start_y
 
-    # vertical lines
-    pg.draw.line(surface, line_color, (start_x  + CELL_SIZE, start_y), (start_x + CELL_SIZE, start_y + grid_width), thickness)
-    pg.draw.line(surface, line_color, (start_x + CELL_SIZE * 2, start_y), (start_x + CELL_SIZE * 2, start_y + grid_width), thickness)
+            state_color = self.COLORS["LIGHT_GREY"]
+            if self.feedback_states[mod_key] == "CORRECT":
+                state_color = self.COLORS["GREEN"]
+            elif self.feedback_states[mod_key] == "ERROR":
+                state_color = self.COLORS["RED"]
 
-def draw_color(surface, color, coords):
-    """Fills a specific cell with a circle of a given color"""
-    start_x = int(GRID_CENTER_X - CELL_SIZE + (coords[0] * CELL_SIZE))
-    start_y = int(GRID_CENTER_Y - CELL_SIZE + (coords[1] * CELL_SIZE))
+            pg.draw.rect(self.screen, state_color, (bx, by, box_width, box_height), border_radius=6)
+            pg.draw.rect(self.screen, self.COLORS["DARK_GREY"], (bx, by, box_width, box_height), 2, border_radius=6)
 
-    radius = (CELL_SIZE // 2) - PADDING # PADDING is padding
-    pg.draw.circle(surface, color, (start_x, start_y), radius)
+            txt_surface = self.font.render(label, True, self.COLORS["BLACK"])
+            txt_rect = txt_surface.get_rect(center=(bx+box_width // 2, by + box_height // 2))
+            self.screen.blit(txt_surface, txt_rect)
 
-def draw_legend(surface, cfg, feedback):
-    """Draws the keybinds for the active configuration settings."""
-    active_settings = []
-    if cfg["use_color"]: active_settings.append(("COLOR [F]", "color"))
-    if cfg["use_spatial"]: active_settings.append(("SPATIAL [J]", "spatial"))
-    if cfg["use_audio"]: active_settings.append(("AUDIO [SPACE]", "audio"))
+    def generate_sequence(self, length, match_count):
+        """Generates the array with a guaranteed target distribution.
+        Prevents outlier games with for example, no matches or 70% matches."""
+        n_back = self.cfg["n_back"]
+        sequence = []
+        color_targets = set(random.sample(range(n_back, length), match_count)) if self.cfg["use_color"] else set()
+        spatial_targets = set(random.sample(range(n_back, length), match_count)) if self.cfg["use_spatial"] else set()
+        audio_targets = set(random.sample(range(n_back, length), match_count)) if self.cfg["use_audio"] else set()
 
-    if not active_settings:
-        return
-
-    box_width, box_height = 140, 40
-
-    spacing = 20
-    total_width = len(active_settings) * box_width + (1 - len(active_settings)) * spacing
-    start_x = (SCREEN_WIDTH - total_width) // 2
-    start_y = SCREEN_HEIGHT - 70
-
-    for i, (label, mod_key) in enumerate(active_settings):
-        bx = start_x + i * (box_width + spacing)
-        by = start_y
-
-        state_color = COLORS["LIGHT_GREY"]
-        if feedback[mod_key] == "CORRECT":
-            state_color = COLORS["GREEN"]
-        elif feedback[mod_key] == "ERROR":
-            state_color = COLORS["RED"]
-
-        pg.draw.rect(surface, state_color, (bx, by, box_width, box_height), border_radius=6)
-        pg.draw.rect(surface, COLORS["DARK_GREY"], (bx, by, box_width, box_height), 2, border_radius=6)
-
-        txt_surface = font.render(label, True, COLORS["BLACK"])
-        txt_rect = txt_surface.get_rect(center=(bx+box_width // 2, by + box_height // 2))
-        surface.blit(txt_surface, txt_rect)
-
-def generate_sequence(config, length, match_count):
-    """Generates the array with a guaranteed target distribution.
-    Prevents outlier games with for example, no matches or 70% matches."""
-    n_back = config["n_back"]
-    sequence = []
-    color_targets = set(random.sample(range(n_back, length), match_count)) if config["use_color"] else set()
-    spatial_targets = set(random.sample(range(n_back, length), match_count)) if config["use_spatial"] else set()
-    audio_targets = set(random.sample(range(n_back, length), match_count)) if config["use_audio"] else set()
-
-    
-    for i in range(length):
-        turn_stimulus = {}
-        # color stim loop
-        if config["use_color"]:
-            if i in color_targets:
-                turn_stimulus["color"] = sequence[i - n_back]["color"]
-            else:
-                color_pool = ACTIVE_COLORS.copy()
-                if i >= n_back:
-                    avoid_color = sequence[i - n_back]["color"]
-                    if avoid_color in color_pool:
-                        color_pool.remove(avoid_color)
-                turn_stimulus["color"] = random.choice(color_pool)
-        else:
-            turn_stimulus["color"] = "BLUE"
-
-        # spatial stim loop
-        if config["use_spatial"]:
-            if i in spatial_targets:
-                turn_stimulus["spatial"] = sequence[i - n_back]["spatial"]
-            else:
-                spatial_pool = [(x,y) for x in range(3) for y in range(3)]
-                if i >= n_back:
-                    avoid_space = sequence[i - n_back]["spatial"]
-                    if avoid_space in spatial_pool:
-                        spatial_pool.remove(avoid_space)
-                turn_stimulus["spatial"] = random.choice(spatial_pool)
-        else:
-            turn_stimulus["spatial"] = (1, 1)
-
-        # audio stim loop
-        if config["use_audio"]:
-            if i in audio_targets:
-                turn_stimulus["audio"] = sequence[i - n_back]["audio"]
-            else:
-                audio_pool = ACTIVE_AUDIO.copy()
-                if i >= n_back:
-                    avoid_audio = sequence[i - n_back]["audio"]
-                    if avoid_audio in audio_pool:
-                        audio_pool.remove(avoid_audio)
-                turn_stimulus["audio"] = random.choice(audio_pool)
-        else:
-            turn_stimulus["audio"] = None
-
-        sequence.append(turn_stimulus)
-
-    return sequence
-
-
-
-# def generate_stimulus(cfg):
-#     """Generates a stimulus list based on the config's active flags."""
-#     return {
-#         "color" : random.choice(ACTIVE_COLORS) if cfg["use_color"] else "BLUE",
-#         "spatial" : (random.randint(0, 2), random.randint(0, 2)) if cfg["use_spatial"] else (1, 1),
-#         "audio" : random.choice(ACTIVE_AUDIO) if cfg["use_audio"] else None
-#     }
-
-def get_target_matches(current, target, cfg):
-    """Returns a dictionary mapping of which specific elements are currently matching."""
-    return {
-        "color": cfg["use_color"] and (current["color"] == target["color"]),
-        "spatial": cfg["use_spatial"] and (current["spatial"] == target["spatial"]),
-        "audio": cfg["use_audio"] and (current["audio"] == target["audio"])
-    }
-
-def handle_input(modality, action_timestamp):
-    """Logs performance of input keys."""
-    if not responses[modality]:
-        responses[modality] = True
-        if is_target[modality]:
-            feedback_states[modality] = "CORRECT"
-            print(f"[{action_timestamp}] {modality.upper()} CORRECT HIT")
-        else:
-            feedback_states[modality] = "ERROR"
-            print(f"[{action_timestamp}] {modality.upper()} IMPULSIVITY ERROR")
-
-state = "BLANK"
-last_switch_time = time.perf_counter()
-show_color = False
-stimulus_history = []
-
-
-is_target = {"color": False, "spatial": False, "audio": False } 
-responses = {"color": False, "spatial": False, "audio": False }
-feedback_states = {"color": "NEUTRAL", "spatial": "NEUTRAL", "audio": "NEUTRAL"}
-
-session_sequence = generate_sequence(config, GAME_LENGTH, MATCH_COUNT)
-
-turn_counter = 0
-current_stimulus = session_sequence[turn_counter]
-if config["use_audio"] and current_stimulus.get("audio"):
-    AUDIO_FILES[current_stimulus["audio"]].play()
-
-running = True
-while running:
-    for event in pg.event.get():
-        # quit conditions
-        if event.type == pg.QUIT:
-            running = False
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_ESCAPE:
-                running = False
-                continue
-
-
-            action_timestamp = time.time()
-            if event.key == pg.K_f and config["use_color"]:
-                handle_input("color", action_timestamp)
-            if event.key == pg.K_j and config["use_spatial"]:
-                handle_input("spatial", action_timestamp)
-            if event.key == pg.K_SPACE and config["use_audio"]:
-                handle_input("audio", action_timestamp)
-
-    current_time = time.perf_counter()
-    elapsed = current_time - last_switch_time
-
-    current_time = time.perf_counter()
-    elapsed = current_time - last_switch_time
-
-    if elapsed >= STIMULUS_DURATION:
-        # Check for inattention errors on the current item before moving on
-        for mod in ["color", "spatial", "audio"]:
-            config_key = f"use_{mod}"
-            if config[config_key] and is_target[mod] and not responses[mod]:
-                feedback_states[mod] = "ERROR"
-                print(f"[{time.time()}] {mod.upper()} INATTENTION ERROR - Missed target")
-
-        # Advance to the next turn
-        turn_counter += 1
-        if turn_counter >= GAME_LENGTH:
-            running = False
-        else:
-            current_stimulus = session_sequence[turn_counter]
-            
-            # Reset responses and feedback for the new turn
-            responses = {"color": False, "spatial": False, "audio": False}
-            feedback_states = {"color": "NEUTRAL", "spatial": "NEUTRAL", "audio": "NEUTRAL"}
-
-            # Calculate new n-back targets
-            if turn_counter >= config["n_back"]:
-                target_stimulus = session_sequence[turn_counter - config["n_back"]]
-                is_target = get_target_matches(current_stimulus, target_stimulus, config)
-            else:
-                is_target = {"color": False, "spatial": False, "audio": False}
-
-            # Play audio if active
-            if config["use_audio"] and current_stimulus.get("audio"):
-                AUDIO_FILES[current_stimulus["audio"]].play()
-
-        last_switch_time = current_time
         
-    screen.fill(COLORS["WHITE"])
-    draw_grid(screen)
+        for i in range(length):
+            turn_stimulus = {}
+            # color stim loop
+            if self.cfg["use_color"]:
+                if i in color_targets:
+                    turn_stimulus["color"] = sequence[i - n_back]["color"]
+                else:
+                    color_pool = self.ACTIVE_COLORS.copy()
+                    if i >= n_back:
+                        avoid_color = sequence[i - n_back]["color"]
+                        if avoid_color in color_pool:
+                            color_pool.remove(avoid_color)
+                    turn_stimulus["color"] = random.choice(color_pool)
+            else:
+                turn_stimulus["color"] = "BLUE"
 
-    if current_stimulus:
-        color_val = COLORS[current_stimulus["color"]] if config["use_color"] else COLORS["BLUE"]
-        draw_color(screen, color_val, current_stimulus["spatial"])
+            # spatial stim loop
+            if self.cfg["use_spatial"]:
+                if i in spatial_targets:
+                    turn_stimulus["spatial"] = sequence[i - n_back]["spatial"]
+                else:
+                    spatial_pool = [(x,y) for x in range(3) for y in range(3)]
+                    if i >= n_back:
+                        avoid_space = sequence[i - n_back]["spatial"]
+                        if avoid_space in spatial_pool:
+                            spatial_pool.remove(avoid_space)
+                    turn_stimulus["spatial"] = random.choice(spatial_pool)
+            else:
+                turn_stimulus["spatial"] = (1, 1)
 
-    draw_legend(screen, config, feedback_states)
-   
-    pg.display.flip()
-    clock.tick(FPS)
+            # audio stim loop
+            if self.cfg["use_audio"]:
+                if i in audio_targets:
+                    turn_stimulus["audio"] = sequence[i - n_back]["audio"]
+                else:
+                    audio_pool = self.ACTIVE_AUDIO.copy()
+                    if i >= n_back:
+                        avoid_audio = sequence[i - n_back]["audio"]
+                        if avoid_audio in audio_pool:
+                            audio_pool.remove(avoid_audio)
+                    turn_stimulus["audio"] = random.choice(audio_pool)
+            else:
+                turn_stimulus["audio"] = None
 
-pg.quit()
+            sequence.append(turn_stimulus)
+
+        return sequence
+
+    def log_event(self, modality, action, state):
+        """Writes the game event data to csv."""
+        with open(self.log_filename, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([time.time(), modality, action, state])
+
+
+
+
+    def get_target_matches(self, current, target):
+        """Returns a dictionary mapping of which specific elements are currently matching."""
+        return {
+            "color": self.cfg["use_color"] and (current["color"] == target["color"]),
+            "spatial": self.cfg["use_spatial"] and (current["spatial"] == target["spatial"]),
+            "audio": self.cfg["use_audio"] and (current["audio"] == target["audio"])
+        }
+
+    def handle_input(self, modality, action_timestamp):
+        """Logs performance of input keys."""
+        if not self.responses[modality]:
+            self.responses[modality] = True
+            if self.is_target[modality]:
+                self.feedback_states[modality] = "CORRECT"
+                self.log_event(modality, "pressed", "CORRECT_HIT")
+                print(f"[{action_timestamp}] {modality.upper()} CORRECT HIT")
+            else:
+                self.feedback_states[modality] = "ERROR"
+                self.log_event(modality, "pressed", "IMPULSIVITY_ERROR")
+                print(f"[{action_timestamp}] {modality.upper()} IMPULSIVITY ERROR")
+
+    def run(self):
+        last_switch_time = time.perf_counter()
+
+        current_stimulus = self.session_sequence[self.turn_counter]
+        if self.cfg["use_audio"] and current_stimulus.get("audio"):
+            self.AUDIO_FILES[current_stimulus["audio"]].play()
+
+        running = True
+        while running:
+            for event in pg.event.get():
+                # quit conditions
+                if event.type == pg.QUIT:
+                    running = False
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_ESCAPE:
+                        running = False
+                        continue
+
+
+                    action_timestamp = time.time()
+                    if event.key == pg.K_f and self.cfg["use_color"]:
+                        self.handle_input("color", action_timestamp)
+                    if event.key == pg.K_j and self.cfg["use_spatial"]:
+                        self.handle_input("spatial", action_timestamp)
+                    if event.key == pg.K_SPACE and self.cfg["use_audio"]:
+                        self.handle_input("audio", action_timestamp)
+
+            current_time = time.perf_counter()
+            elapsed = current_time - last_switch_time
+
+            current_time = time.perf_counter()
+            elapsed = current_time - last_switch_time
+
+            if elapsed >= self.STIMULUS_DURATION:
+                # Check for inattention errors on the current item before moving on
+                for mod in ["color", "spatial", "audio"]:
+                    config_key = f"use_{mod}"
+                    if self.cfg[config_key] and self.is_target[mod] and not self.responses[mod]:
+                        self.feedback_states[mod] = "ERROR"
+                        self.log_event(mod, "missed", "INATTENTION_ERROR")
+                        print(f"[{time.time()}] {mod.upper()} INATTENTION ERROR - Missed target")
+
+                # Advance to the next turn
+                self.turn_counter += 1
+                if self.turn_counter >= self.GAME_LENGTH:
+                    running = False
+                else:
+                    current_stimulus = self.session_sequence[self.turn_counter]
+                    
+                    # Reset responses and feedback for the new turn
+                    self.responses = {"color": False, "spatial": False, "audio": False}
+                    self.feedback_states = {"color": "NEUTRAL", "spatial": "NEUTRAL", "audio": "NEUTRAL"}
+
+                    # Calculate new n-back targets
+                    if self.turn_counter >= self.cfg["n_back"]:
+                        target_stimulus = self.session_sequence[self.turn_counter - self.cfg["n_back"]]
+                        self.is_target = self.get_target_matches(current_stimulus, target_stimulus)
+                    else:
+                        is_target = {"color": False, "spatial": False, "audio": False}
+
+                    # Play audio if active
+                    if self.cfg["use_audio"] and current_stimulus.get("audio"):
+                        self.AUDIO_FILES[current_stimulus["audio"]].play()
+
+                last_switch_time = current_time
+                
+            self.screen.fill(self.COLORS["WHITE"])
+            self.draw_grid()
+
+            if current_stimulus:
+                color_val = self.COLORS[current_stimulus["color"]] if self.cfg["use_color"] else self.COLORS["BLUE"]
+                self.draw_color(color_val, current_stimulus["spatial"])
+
+            self.draw_legend()
+        
+            pg.display.flip()
+            self.clock.tick(self.FPS)
+
+        last_switch_time = time.perf_counter()
+
+
+    pg.quit()
+
+
+if __name__ == "__main__":
+    config = {
+        "n_back": 2,
+        "use_color": False,
+        "use_spatial": True,
+        "use_audio": True
+    }
+    game = NBackGame(config)
+    game.run()

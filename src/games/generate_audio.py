@@ -12,7 +12,7 @@ def generate_stimuli_audio():
     targets = ["dog", "cat", "cow", "duck", "sun", "toy", "bin"]
 
     script_dir = Path(__file__).resolve().parent
-    output_dir = Path(script_dir / "../../datafiles/audiofiles").resolve()
+    output_dir = Path(script_dir / "../datafiles/audiofiles").resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Generating .wav files in: {output_dir}")
@@ -23,11 +23,11 @@ def generate_stimuli_audio():
         save_path = output_dir / filename
         # Saves directly to your local directory without freezing a live game loop
         engine.save_to_file(word, str(save_path))
-        engine.runAndWait()
+        # engine.runAndWait() # put it here for linux
         print(f"Saved: {filename}")
         
     # Process the rendering queue
-        
+    engine.runAndWait()    
     print("Audio generation complete.")
 
 if __name__ == "__main__":
