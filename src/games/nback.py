@@ -1,6 +1,7 @@
 import time
 import pygame as pg
 import random
+import csv
 from pathlib import Path
 
 class NBackGame:
@@ -64,6 +65,11 @@ class NBackGame:
         self.turn_counter = 0
 
         self.session_sequence = self.generate_sequence(self.GAME_LENGTH, self.MATCH_COUNT)
+        self.log_filename = "game_session_log.csv"
+        with open(self.log_filename, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["timestamp", "modality", "action", "performance_state"])
+
 
 # TODO bug in the generating sequence loop
 # TODO log all the info
@@ -185,15 +191,14 @@ class NBackGame:
 
         return sequence
 
+    def log_event(self, modality, action, state):
+        """Writes the game event data to csv."""
+        with open(self.log_filename, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([time.time(), modality, action, state])
 
 
-    # def generate_stimulus(cfg):
-    #     """Generates a stimulus list based on the config's active flags."""
-    #     return {
-    #         "color" : random.choice(ACTIVE_COLORS) if cfg["use_color"] else "BLUE",
-    #         "spatial" : (random.randint(0, 2), random.randint(0, 2)) if cfg["use_spatial"] else (1, 1),
-    #         "audio" : random.choice(ACTIVE_AUDIO) if cfg["use_audio"] else None
-    #     }
+
 
     def get_target_matches(self, current, target):
         """Returns a dictionary mapping of which specific elements are currently matching."""
@@ -209,9 +214,11 @@ class NBackGame:
             self.responses[modality] = True
             if self.is_target[modality]:
                 self.feedback_states[modality] = "CORRECT"
+                self.log_event(modality, "pressed", "CORRECT_HIT")
                 print(f"[{action_timestamp}] {modality.upper()} CORRECT HIT")
             else:
                 self.feedback_states[modality] = "ERROR"
+                self.log_event(modality, "pressed", "IMPULSIVITY_ERROR")
                 print(f"[{action_timestamp}] {modality.upper()} IMPULSIVITY ERROR")
 
     def run(self):
@@ -253,6 +260,7 @@ class NBackGame:
                     config_key = f"use_{mod}"
                     if self.cfg[config_key] and self.is_target[mod] and not self.responses[mod]:
                         self.feedback_states[mod] = "ERROR"
+                        self.log_event(mod, "missed", "INATTENTION_ERROR")
                         print(f"[{time.time()}] {mod.upper()} INATTENTION ERROR - Missed target")
 
                 # Advance to the next turn
@@ -300,8 +308,8 @@ class NBackGame:
 if __name__ == "__main__":
     config = {
         "n_back": 2,
-        "use_color": True,
-        "use_spatial": False,
+        "use_color": False,
+        "use_spatial": True,
         "use_audio": True
     }
     game = NBackGame(config)
