@@ -8,8 +8,9 @@ import pylsl
 from pathlib import Path
 
 script_dir = Path(__file__).resolve().parent
-raw_path = script_dir.parent / "datafiles" / "Ewing_Patrick_2026-08-10_13-07-25_EO-EC.cnt"
-raw = mne.io.read_raw_ant(raw_path, preload = True)
+raw_path = script_dir.parent / "datafiles" / "LSLData" / "lsl_eeg_recording.fif"
+# raw_path = script_dir.parent / "datafiles" / "Ewing_Patrick_2026-08-10_13-07-25_EO-EC.cnt"
+raw = mne.io.read_raw_fif(raw_path, preload = True)
 
 epochs = mne.make_fixed_length_epochs(raw, duration=2.0, overlap=1.0, verbose = False)
 data = epochs.get_data() * 1e6
