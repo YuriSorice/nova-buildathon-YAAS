@@ -192,8 +192,17 @@ def plot_accuracy_over_time(accuracy_df, accuracy_column):
 
 def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 1. Create an explicit Figure object instead of using plt.figure()
-    fig = Figure(figsize=(10, 6), dpi=100)
+    fig = Figure(figsize=(15, 10), dpi=100)
+    fig.patch.set_facecolor("#2b2b2b")
+    fig.patch.set_edgecolor("#2b2b2b")
+    fig.patch.set_linewidth(0)
     ax = fig.add_subplot(111)
+
+    # customize the graph's appearance to match the dark theme
+    ax.set_facecolor("#2b2b2b")
+    ax.tick_params(colors='white')
+    for spine in ax.spines.values():
+        spine.set_color("#50B5CA")
 
     # 2. Plot on the explicit axis (ax) instead of pyplot (plt)
     ax.plot(running_accuracy_df['timestamp'], running_accuracy_df['running_accuracy'], label='Running Accuracy', color="#50B5CA", linewidth = 2, marker = 'o')
@@ -210,27 +219,27 @@ def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 3. Return the figure so the GUI can capture it
     return fig
 
+def fetch_game_data():
+    script_dir = Path(__file__).resolve().parent.parent
+    raw_path = script_dir.parent / "game_session_log.csv"
+    dfgame = pd.read_csv(raw_path)  # Replace with your actual CSV file path
+    return dfgame
 
-script_dir = Path(__file__).resolve().parent.parent
-raw_path = script_dir.parent / "game_session_log.csv"
-dfgame = pd.read_csv(raw_path)  # Replace with your actual CSV file path
-#df = pd.read_csv('eeg_data.csv')  # Replace with your actual CSV file path
-accuracy = calculate_accuracy(dfgame)
-print(accuracy)
-running_accuracy = running_accuracy(dfgame)
-print(running_accuracy)
-rolling_average_accuracy = rolling_average_accuracy(dfgame, window_size=6)
-print(rolling_average_accuracy)
 
-#plot_accuracy_over_time(running_accuracy, 'running_accuracy')
-#plot_accuracy_over_time(rolling_average_accuracy, 'rolling_average_accuracy')
+# dfgame = fetch_game_data()  # Use the function to fetch game data
+# #df = pd.read_csv('eeg_data.csv')  # Replace with your actual CSV file path
+# accuracy = calculate_accuracy(dfgame)
+# print(accuracy)
+# running_accuracy = running_accuracy(dfgame)
+# print(running_accuracy)
+# rolling_average_accuracy = rolling_average_accuracy(dfgame, window_size=6)
+# print(rolling_average_accuracy)
 
-fig = plot_both_accuracies(running_accuracy, rolling_average_accuracy)
-plt.figure(fig.number if hasattr(fig, 'number') else 1)
-    
-    # Draw contents and show window
-canvas = fig.canvas
-plt.show()
+# running_accuracy_df = running_accuracy(dfgame)
+# print(running_accuracy_df)
+# rolling_average_accuracy_df = rolling_average_accuracy(dfgame, window_size=6)
+# print(rolling_average_accuracy_df)
+
 #tei_df = calculate_task_engagement(df)
 #tbr_df = calculate_tbr(df, channels=['Fz', 'Cz', 'Pz']) 
 #tar_df = calculate_tar(df)
