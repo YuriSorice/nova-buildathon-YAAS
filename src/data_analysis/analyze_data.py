@@ -212,11 +212,11 @@ def plot_both_accuracies_matplotlib(running_accuracy_df, rolling_average_accurac
 
 def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 1. Create an explicit Figure object instead of using plt.figure()
-    fig = Figure(figsize=(15, 10), dpi=100)
+    fig = Figure(figsize=(16, 12), dpi=100)
     fig.patch.set_facecolor("#2b2b2b")
     fig.patch.set_edgecolor("#2b2b2b")
     fig.patch.set_linewidth(0)
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
 
     # customize the graph's appearance to match the dark theme
     ax.set_facecolor("#2b2b2b")
@@ -242,11 +242,11 @@ def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
 
 def plot_eeg_data(df, ratio):
     # 1. Create an explicit Figure object instead of using plt.figure()
-    fig = Figure(figsize=(15, 10), dpi=100)
+    fig = Figure(figsize=(16, 12), dpi=100)
     fig.patch.set_facecolor("#2b2b2b")
     fig.patch.set_edgecolor("#2b2b2b")
     fig.patch.set_linewidth(0)
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(211)
     
     # customize the graph's appearance to match the dark theme
     ax.set_facecolor("#2b2b2b")

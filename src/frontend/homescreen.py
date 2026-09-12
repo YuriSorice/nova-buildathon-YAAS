@@ -46,13 +46,31 @@ class FocusApp(ctk.CTk):
 
         # build the home screen UI
         self.welcome_label = ctk.CTkLabel(
-            self.tab_home, text="Select a game to begin your session.", font=("Comic Sans MS", 24))
-        self.welcome_label.pack(pady=40)
+            self.tab_home, text="Select game to begin your session.", font=("Comic Sans MS", 24))
+        self.welcome_label.pack(pady=(40, 20))
+
+        # add explanation for the game on the home tab
+        self.explanation_frame = ctk.CTkFrame(self.tab_home, corner_radius=15, fg_color="#1e3a3e")
+        self.explanation_frame.pack(fill="x", padx=60, pady=(0, 30))
+
+        self.explanation_title = ctk.CTkLabel(self.explanation_frame, text="How to Play", font=("Comic Sans MS", 20, "bold"), text_color="#50B5CA")
+        self.explanation_title.pack(pady=(15, 5))
+
+        game_explanation = (
+            "This game is an exercise that challenges your working memory and your sustained focus.\n\n"
+            "• The Objective: Watch the sequence of circles appearing on screen.\n"
+            "• Press (J) if the current item matches the item shown N turns ago.\n"
+            "• Keep your jaw relaxed and your head still.\n"
+            "• The game will adjust difficulty depending on your performance."
+        )
+
+        self.explanation_body = ctk.CTkLabel(self.explanation_frame, text=game_explanation, font=("Comic Sans MS", 18), justify="left",anchor="w")
+        self.explanation_body.pack(pady=(5, 15), padx=30, fill="x")
 
         # create three distinct buttons.
-        self.btn_game1 = ctk.CTkButton(self.tab_home, text="Launch Game 1", width=200,
+        self.btn_game1 = ctk.CTkButton(self.tab_home, text="Launch N-Back Game", width=200,
                                        height=80, command=self.start_game_1, font=("Comic Sans MS", 20, "bold"), fg_color="#50B5CA")
-        self.btn_game1.pack(pady=20)
+        self.btn_game1.pack(pady=20)    
 
         # build data placeholder
         self.results_title = ctk.CTkLabel(
@@ -86,7 +104,7 @@ class FocusApp(ctk.CTk):
             self.btn_game1.configure(state="normal", text="Launch Game 1")
             self.process_and_display_data()
 
-    def build_results(self, game_score=None, running_accuracy=None, rolling_average_accuracy=None):
+    def build_results(self, game_score=None, running_accuracy=None, rolling_average_accuracy=None, tei=None, tbr=None, tar=None):
         # clear previous results
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
@@ -149,42 +167,42 @@ class FocusApp(ctk.CTk):
             "Comic Sans MS", 16), wraplength=800).pack(pady=15, padx=15)
 
         # build graph display section
-        graph_frame = ctk.CTkFrame(
+        graph_frame1 = ctk.CTkFrame(
             self.scrollable_frame, corner_radius=15, fg_color="#2b2b2b")
-        graph_frame.pack(fill="both", padx=20, pady=10, expand=True)
+        graph_frame1.pack(fill="both", padx=20, pady=(10, 1), expand=True)
 
         # create a Matplotlib figure and axis for the graph
-        fig = da.plot_both_accuracies(
+        fig1 = da.plot_both_accuracies(
             running_accuracy, rolling_average_accuracy)
-
-        # ax = fig.add_subplot(111)
-
-        # # customize the graph's appearance to match the dark theme
-        # ax.set_facecolor("#2b2b2b")
-        # ax.tick_params(colors='white')
-        # for spine in ax.spines.values():
-        #     spine.set_color("#50B5CA")
-
-        # # Placeholder data for the graph
-        # time_minutes = [1, 2, 3, 4, 5]
-        # theta_beta_ratio = [2.1, 3.4, 5.6, 7.0, 11.4]
-
-        # plot the data with a line and markers, and fill the area under the curve for visual emphasis
-        # ax.plot(time_minutes, theta_beta_ratio, color="#50B5CA", linewidth=2, marker='o')
-        # ax.fill_between(time_minutes, theta_beta_ratio, color="#50B5CA", alpha=0.3)
-        # ax.set_title("Theta/Beta Ratio Over Time", color="white", fontsize=16, fontname="Comic Sans MS")
-        # ax.set_xlabel("Time (seconds)", color="white", fontsize=12, fontname="Comic Sans MS")
-        # ax.set_ylabel("Theta/Beta Ratio", color="white", fontsize=12, fontname="Comic Sans MS")
+        fig1.tight_layout()
 
         # convert the Matplotlib figure to a Tkinter-compatible canvas and display it
-        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-        canvas_widget = canvas.get_tk_widget()
-        canvas_widget.configure(
+        canvas1 = FigureCanvasTkAgg(fig1, master=graph_frame1)
+        canvas_widget1 = canvas1.get_tk_widget()
+        canvas_widget1.configure(
+                background="#2b2b2b", highlightthickness=0, borderwidth=0)
+        canvas1.draw()
+        
+        # render the canvas to ensure it displays correctly
+        canvas_widget1.pack(fill="both", expand=True, padx=10, pady=10)
+
+        graph_frame2 = ctk.CTkFrame(
+                self.scrollable_frame, corner_radius=15, fg_color="#2b2b2b")
+        graph_frame2.pack(fill="both", padx=20, pady=(1, 10), expand=True)
+        
+        # create a Matplotlib figure and axis for the graph
+        fig2 = da.plot_eeg_data(tbr, "tbr")
+        fig2.tight_layout()
+
+        # convert the Matplotlib figure to a Tkinter-compatible canvas and display it
+        canvas2 = FigureCanvasTkAgg(fig2, master=graph_frame2)
+        canvas_widget2 = canvas2.get_tk_widget()
+        canvas_widget2.configure(
             background="#2b2b2b", highlightthickness=0, borderwidth=0)
-        canvas.draw()
+        canvas2.draw()
 
         # render the canvas to ensure it displays correctly
-        canvas_widget.pack(fill="both", expand=True, padx=10, pady=10)
+        canvas_widget2.pack(fill="both", expand=True, padx=10, pady=10)
 
     def process_and_display_data(self):
         # switch the UI to the Results tab
@@ -200,16 +218,19 @@ class FocusApp(ctk.CTk):
             # focus_level = analyze_session("eeg_results.json")
 
             
-            df_game = da.fetch_game_data()  # Fetch the game session data
-            print(df_game)
-            accuracy = da.calculate_accuracy(df_game) * 100
-            running_accuracy_df = da.running_accuracy(df_game)
+            df_data = da.fetch_synced_data("synced_data_alan_scrolling.csv")  # Fetch the game session data
+            print(df_data)
+            tei_df = da.calculate_task_engagement(df_data)
+            tbr_df = da.calculate_tbr(df_data, ['Fz', 'C3', 'C4', 'Cz', 'Pz', 'PO7', 'PO8','Oz'])
+            tar_df = da.calculate_tar(df_data, ['Fz', 'C3', 'C4', 'Cz'], ['PO7', 'PO8', 'Oz', 'Pz'])
+            accuracy = da.calculate_accuracy(df_data) * 100
+            running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
-                df_game, window_size=3)
+                df_data, window_size=3)
             self.build_results(
                 game_score=accuracy,
                 running_accuracy=running_accuracy_df,
-                rolling_average_accuracy=rolling_average_accuracy_df,
+                rolling_average_accuracy=rolling_average_accuracy_df, tei=tei_df, tbr=tbr_df, tar=tar_df
             )
 
             self.results_title.configure(
