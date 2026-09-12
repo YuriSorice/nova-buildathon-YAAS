@@ -6,7 +6,7 @@ from pathlib import Path
 
 class NBackGame:
 
-    def __init__(self, config, stim=1.75, game_length=30, num_match=6):
+    def __init__(self, config, stim=1.75, game_length=15, num_match=3):
         self.SCREEN_WIDTH = 800
         self.SCREEN_HEIGHT = 600
         self.FPS = 60
