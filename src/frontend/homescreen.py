@@ -15,6 +15,7 @@ if str(project_root) not in sys.path:
 
 import src.data_analysis.analyze_data as da  # Import your data analysis module
 
+
 focus_ratio = 1.0  # Global variable to hold the focus ratio for feedback
 
 ctk.set_appearance_mode("System")
@@ -50,10 +51,12 @@ class FocusApp(ctk.CTk):
         self.welcome_label.pack(pady=(40, 20))
 
         # add explanation for the game on the home tab
-        self.explanation_frame = ctk.CTkFrame(self.tab_home, corner_radius=15, fg_color="#1e3a3e")
+        self.explanation_frame = ctk.CTkFrame(
+            self.tab_home, corner_radius=15, fg_color="#1e3a3e")
         self.explanation_frame.pack(fill="x", padx=60, pady=(0, 30))
 
-        self.explanation_title = ctk.CTkLabel(self.explanation_frame, text="How to Play", font=("Comic Sans MS", 20, "bold"), text_color="#50B5CA")
+        self.explanation_title = ctk.CTkLabel(self.explanation_frame, text="How to Play", font=(
+            "Comic Sans MS", 20, "bold"), text_color="#50B5CA")
         self.explanation_title.pack(pady=(15, 5))
 
         game_explanation = (
@@ -64,13 +67,14 @@ class FocusApp(ctk.CTk):
             "• The game will adjust difficulty depending on your performance."
         )
 
-        self.explanation_body = ctk.CTkLabel(self.explanation_frame, text=game_explanation, font=("Comic Sans MS", 18), justify="left",anchor="w")
+        self.explanation_body = ctk.CTkLabel(self.explanation_frame, text=game_explanation, font=(
+            "Comic Sans MS", 18), justify="left", anchor="w")
         self.explanation_body.pack(pady=(5, 15), padx=30, fill="x")
 
         # create three distinct buttons.
         self.btn_game1 = ctk.CTkButton(self.tab_home, text="Launch N-Back Game", width=200,
                                        height=80, command=self.start_game_1, font=("Comic Sans MS", 20, "bold"), fg_color="#50B5CA")
-        self.btn_game1.pack(pady=20)    
+        self.btn_game1.pack(pady=20)
 
         # build data placeholder
         self.results_title = ctk.CTkLabel(
@@ -140,13 +144,13 @@ class FocusApp(ctk.CTk):
         # build EEG analysis side
         ctk.CTkLabel(eeg_analysis_side, text="Your Focus", font=(
             "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
-        ctk.CTkLabel(eeg_analysis_side, text=f"Task Engagement Index: ", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Task Engagement Index: {tei["tei"].mean()}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=2)
-        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Beta Ratio: ", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Beta Ratio: {tbr["tbr"].mean()}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=2)
-        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Alpha Ratio: ", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Alpha Ratio: {tar["tar"].mean()}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=(2, 15))
 
@@ -169,7 +173,7 @@ class FocusApp(ctk.CTk):
         # build graph display section
         graph_frame1 = ctk.CTkFrame(
             self.scrollable_frame, corner_radius=15, fg_color="#2b2b2b")
-        graph_frame1.pack(fill="both", padx=20, pady=(10, 1), expand=True)
+        graph_frame1.pack(fill="both", padx=20, pady=(5, 2))
 
         # create a Matplotlib figure and axis for the graph
         fig1 = da.plot_both_accuracies(
@@ -180,16 +184,16 @@ class FocusApp(ctk.CTk):
         canvas1 = FigureCanvasTkAgg(fig1, master=graph_frame1)
         canvas_widget1 = canvas1.get_tk_widget()
         canvas_widget1.configure(
-                background="#2b2b2b", highlightthickness=0, borderwidth=0)
+            background="#2b2b2b", highlightthickness=0, borderwidth=0)
         canvas1.draw()
-        
+
         # render the canvas to ensure it displays correctly
-        canvas_widget1.pack(fill="both", expand=True, padx=10, pady=10)
+        canvas_widget1.pack(fill="both", expand=True, padx=5, pady=5)
 
         graph_frame2 = ctk.CTkFrame(
-                self.scrollable_frame, corner_radius=15, fg_color="#2b2b2b")
-        graph_frame2.pack(fill="both", padx=20, pady=(1, 10), expand=True)
-        
+            self.scrollable_frame, corner_radius=15, fg_color="#2b2b2b")
+        graph_frame2.pack(fill="both", padx=20, pady=(2, 5))
+
         # create a Matplotlib figure and axis for the graph
         fig2 = da.plot_eeg_data(tbr, "tbr")
         fig2.tight_layout()
@@ -202,7 +206,7 @@ class FocusApp(ctk.CTk):
         canvas2.draw()
 
         # render the canvas to ensure it displays correctly
-        canvas_widget2.pack(fill="both", expand=True, padx=10, pady=10)
+        canvas_widget2.pack(fill="both", expand=True, padx=5, pady=5)
 
     def process_and_display_data(self):
         # switch the UI to the Results tab
@@ -217,12 +221,14 @@ class FocusApp(ctk.CTk):
 
             # focus_level = analyze_session("eeg_results.json")
 
-            
-            df_data = da.fetch_synced_data("synced_data_alan_scrolling.csv")  # Fetch the game session data
+            # Fetch the game session data
+            df_data = da.fetch_synced_data("synced_data_convo_with_yuri.csv")
             print(df_data)
             tei_df = da.calculate_task_engagement(df_data)
-            tbr_df = da.calculate_tbr(df_data, ['Fz', 'C3', 'C4', 'Cz', 'Pz', 'PO7', 'PO8','Oz'])
-            tar_df = da.calculate_tar(df_data, ['Fz', 'C3', 'C4', 'Cz'], ['PO7', 'PO8', 'Oz', 'Pz'])
+            tbr_df = da.calculate_tbr(
+                df_data, ['Fz', 'C3', 'C4', 'Cz', 'Pz', 'PO7', 'PO8', 'Oz'])
+            tar_df = da.calculate_tar(df_data, ['Fz', 'C3', 'C4', 'Cz'], [
+                                      'PO7', 'PO8', 'Oz', 'Pz'])
             accuracy = da.calculate_accuracy(df_data) * 100
             running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
@@ -242,26 +248,6 @@ class FocusApp(ctk.CTk):
         except Exception as e:
             self.results_title.configure(text="Error loading graph image.")
             print(f"Error loading results: {e}")
-
-    # def process_and_display_data(self):
-    #     # 1. Switch to Data tab and show the loading state
-    #     self.tabs.set("Results")
-    #     self.results_title.configure(text="Processing EEG Data...")
-    #     self.update()
-
-    #     # 2. Simulate the time it takes for MNE to run the ICA math (2000 ms = 2 seconds)
-    #     # This calls a temporary helper method instead of crashing on the missing files
-    #     self.after(2000, self._render_mock_dashboard)
-
-    # def _render_mock_dashboard(self):
-    #     # 3. Bypass the JSON and data_extraction files entirely for now.
-    #     # Pass fake testing numbers directly into your dashboard builder.
-
-    #     fake_score = 88
-    #     fake_ratio = 1.7
-
-    #     self.build_results(game_score=fake_score, focus_ratio=fake_ratio)
-    #     print("Mock dashboard rendered successfully!")
 
 
 if __name__ == "__main__":
