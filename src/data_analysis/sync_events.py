@@ -58,7 +58,7 @@ def sync_game_to_eeg(raw_fif_path, eeg_csv_path, game_csv_path, output_path):
 
 if __name__ == "__main__":
     sync_game_to_eeg(
-        raw_fif_path= "../datafiles/LSLData/lsl_eeg_recording.fif",
+        raw_fif_path= "../datafiles/LSLData/lsl_eeg_recording_raw.fif",
         eeg_csv_path= "../datafiles/extracted_bandpowers.csv",
         game_csv_path= "../games/game_session_log.csv",
         output_path= "../datafiles/synced_data.csv"

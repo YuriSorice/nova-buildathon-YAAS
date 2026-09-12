@@ -310,7 +310,7 @@ if __name__ == "__main__":
         "n_back": 2,
         "use_color": False,
         "use_spatial": True,
-        "use_audio": True
+        "use_audio": False
     }
     game = NBackGame(config)
     game.run()

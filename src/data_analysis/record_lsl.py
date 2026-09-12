@@ -8,7 +8,7 @@ import pylsl
 from pylsl import StreamInlet, resolve_byprop, resolve_streams
 from pathlib import Path
 
-def record_eeg_stream(output_filename="lsl_eeg_recording.fif"):
+def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
     """Uses a StreamInlet to place incoming data chunks from lsl into a file for offline processing."""
     print("Searching for LSL EEG Stream...")
     streams = resolve_byprop('type', 'EEG', timeout=5.0)
