@@ -1,3 +1,5 @@
 eegvenv/
 datafiles/
 *.csv
+*.pyc
+*.json

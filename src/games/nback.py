@@ -81,19 +81,22 @@ class NBackGame:
 
         
     def save_state(self):
-        df = ad.fetch_synced_data()
+        df = ad.fetch_synced_data("synced_data_alan_focused.csv")
         accuracy = int(ad.calculate_accuracy(df))
         tei_df = ad.calculate_task_engagement(df)
+        tei_dict = tei_df.to_dict()
         tbr_df = ad.calculate_tbr(df, channels=['Fz','C3', 'C4','Cz','Pz','PO7','PO8','Oz'])
+        tbr_dict = tbr_df.to_dict()
         tar_df = ad.calculate_tar(df, channels1=['Fz','C3', 'C4','Cz'], channels2=['PO7','PO8','Oz', 'Pz'])
+        tar_dict = tar_df.to_dict()
         state = {
             "config" : self.cfg,
             "accuracy" : accuracy,
-            "tei" : tei_df,
-            "tbr" : tbr_df,
-            "tar" : tar_df
+            "tei" : tei_dict,
+            "tbr" : tbr_dict,
+            "tar" : tar_dict
         }
-        with open("game_state", "w") as file:
+        with open("game_state.json", "w") as file:
             json.dump(state, file, indent=4)
 
     def draw_grid(self):
@@ -322,9 +325,8 @@ class NBackGame:
             self.clock.tick(self.FPS)
 
         last_switch_time = time.perf_counter()
-
-
-    pg.quit()
+        self.save_state()
+        pg.quit()
 
 
 if __name__ == "__main__":
