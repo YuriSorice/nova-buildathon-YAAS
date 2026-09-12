@@ -85,6 +85,8 @@ def process_eeg_file(input_path, output_path):
     raw = mne.io.read_raw_fif(input_path, preload=True,
                               verbose=False)  # fif files
 
+    raw.pick('eeg')
+
     print("Filtering and applying ICA...")
     raw_clean, ica_object = preprocess_eeg(raw, eog_ch='Fp1')
 

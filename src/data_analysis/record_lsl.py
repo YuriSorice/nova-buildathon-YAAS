@@ -34,17 +34,41 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
     n_channels = int(info.channel_count())
 
     ch_names = []
+    ch_types = []
     ch_node = info.desc().child("channels").child("channel")
     while not ch_node.empty():
         label = ch_node.child_value("label")
-        if label:
-            ch_names.append(label)
+        c_type = ch_node.child_value("type").lower()
+
+        ch_names.append(label if label else f"CH_{len(ch_names)}")
+
+        if 'eeg' in c_type:
+            ch_types.append('eeg')
+        elif any(keyword in label.lower() for keyword in ['acc', 'gyro', 'batt', 'count', 'val', 'status']):
+            ch_types.append('misc')
+        else:
+            ch_types.append('eeg_notypetag') if not c_type else ch_types.append('misc')
+
         ch_node = ch_node.next_sibling()
 
     if len(ch_names) != n_channels:
-        print("Missing channel names from XML data.")
-        ch_names = [f"EEG_{i:02d}" for i in range(n_channels)]
-
+        print("[WARNING] Missing or incomplete channel metadata in LSL stream.")
+        stream_name = info.name().lower()
+        
+        # Smart Fallback: Detect Unicorn by name or by its unique 17-channel signature
+        if 'unicorn' in stream_name or n_channels == 17:
+            print("[RECORDER] Applying Unicorn Hybrid Black fallback profile...")
+            ch_names = ['Fz', 'C3', 'Cz', 'C4', 'Pz', 'PO7', 'Oz', 'PO8', 
+                        'Accel_X', 'Accel_Y', 'Accel_Z', 
+                        'Gyro_X', 'Gyro_Y', 'Gyro_Z', 
+                        'Battery', 'Counter', 'Validation']
+            # First 8 are EEG, remaining 9 are miscellaneous telemetry
+            ch_types = ['eeg'] * 8 + ['misc'] * 9
+        else:
+            # Generic fallback for completely unknown devices without XML
+            print(f"[RECORDER] Unknown device. Applying generic layout for {n_channels} channels...")
+            ch_names = [f"CH_{i:02d}" for i in range(n_channels)]
+            ch_types = ['eeg'] * n_channels
     print(f"Stream params: {n_channels} channels at {sfreq} Hz")
     print(f"Channels: {', '.join(ch_names[:8])}{'... ' if len(ch_names) > 8 else ''}")
 
@@ -86,7 +110,7 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
     if np.max(np.abs(data_array)) > 1.0:
         data_array *= 1e-6
 
-    mne_info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types="eeg")
+    mne_info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types=ch_types)
     raw = mne.io.RawArray(data_array, mne_info)
 
     if all_timestamps:

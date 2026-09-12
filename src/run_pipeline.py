@@ -4,6 +4,7 @@ import time
 import signal
 import os
 from pathlib import Path
+import data_analysis.analyze_data as ad
 
 def run_pipeline(filename):
     python_exe = sys.executable  
@@ -100,3 +101,14 @@ def run_pipeline_real(filename):
 
 if __name__ == "__main__":
     run_pipeline_real("string")
+
+    # df = ad.fetch_synced_data("video_demo.csv")
+
+    # tei_df = ad.calculate_task_engagement(df)
+    # tbr_df = ad.calculate_tbr(df, channels=['Fz','C3', 'C4','Cz','Pz','PO7','PO8','Oz'])
+    # tar_df = ad.calculate_tar(df, channels1=['Fz','C3', 'C4','Cz'], channels2=['PO7','PO8','Oz', 'Pz'])
+
+
+    # ad.plot_all_ratios(tei_df, tbr_df, tar_df)
+
+    # ad.plot_both_accuracies_matplotlib(ad.running_accuracy(df), ad.rolling_average_accuracy(df, window_size=5))

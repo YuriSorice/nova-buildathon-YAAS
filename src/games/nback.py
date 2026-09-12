@@ -3,6 +3,15 @@ import pygame as pg
 import random
 import csv
 from pathlib import Path
+import sys
+
+project_root = Path(__file__).resolve().parents[2]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+
+import src.data_analysis.analyze_data as ad
+import json
 
 class NBackGame:
 
@@ -70,9 +79,22 @@ class NBackGame:
             writer = csv.writer(file)
             writer.writerow(["timestamp", "modality", "action", "performance_state"])
 
-
-# TODO bug in the generating sequence loop
-# TODO log all the info
+        
+    def save_state(self):
+        df = ad.fetch_synced_data()
+        accuracy = int(ad.calculate_accuracy(df))
+        tei_df = ad.calculate_task_engagement(df)
+        tbr_df = ad.calculate_tbr(df, channels=['Fz','C3', 'C4','Cz','Pz','PO7','PO8','Oz'])
+        tar_df = ad.calculate_tar(df, channels1=['Fz','C3', 'C4','Cz'], channels2=['PO7','PO8','Oz', 'Pz'])
+        state = {
+            "config" : self.cfg,
+            "accuracy" : accuracy,
+            "tei" : tei_df,
+            "tbr" : tbr_df,
+            "tar" : tar_df
+        }
+        with open("game_state", "w") as file:
+            json.dump(state, file, indent=4)
 
     def draw_grid(self):
         """Draws the 2-back grid centered on the given coordinates."""
@@ -308,7 +330,7 @@ class NBackGame:
 if __name__ == "__main__":
     config = {
         "n_back": 2,
-        "use_color": False,
+        "use_color": True,
         "use_spatial": True,
         "use_audio": False
     }
