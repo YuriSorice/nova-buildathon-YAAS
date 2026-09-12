@@ -113,7 +113,7 @@ def process_eeg_file(input_path, output_path):
 
 if __name__ == "__main__":
     script_dir = Path(__file__).resolve().parent
-    raw_path = script_dir.parent / "datafiles" / "LSLData" / "lsl_eeg_recording.fif"
+    raw_path = script_dir.parent / "datafiles" / "LSLData" / "lsl_eeg_recording_raw.fif"
     # raw_path = script_dir.parent / "datafiles" / "Ewing_Patrick_2026-08-10_13-07-25_EO-EC.cnt"
     output_csv = script_dir.parent / "datafiles" / "extracted_bandpowers.csv"
 

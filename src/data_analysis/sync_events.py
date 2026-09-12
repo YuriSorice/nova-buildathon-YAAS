@@ -1,5 +1,6 @@
 import mne
 import pandas as pd
+import time
 from pathlib import Path
 
 def sync_game_to_eeg(raw_fif_path, eeg_csv_path, game_csv_path, output_path):
@@ -7,6 +8,13 @@ def sync_game_to_eeg(raw_fif_path, eeg_csv_path, game_csv_path, output_path):
 
     eeg_df = pd.read_csv(eeg_csv_path)
     game_df = pd.read_csv(game_csv_path)
+    output_first_half = output_path[:-4]
+    file_format = ".csv"
+    date = f"_{time.ctime()}"
+    date = date.replace(" ", "_", -1)
+    date = date.replace(":", "_", -1)
+    
+    output_path = output_first_half + date + file_format
 
     raw = mne.io.read_raw_fif(raw_fif_path, preload=False, verbose=False)
     eeg_start_unix = raw.info["meas_date"].timestamp()

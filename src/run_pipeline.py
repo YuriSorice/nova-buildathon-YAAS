@@ -99,4 +99,4 @@ def run_pipeline_real(filename):
 
 
 if __name__ == "__main__":
-    run_pipeline_real()
+    run_pipeline_real("string")
