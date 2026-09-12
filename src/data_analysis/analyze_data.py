@@ -149,19 +149,20 @@ def plot_task_engagement(tei_df):
 
 
 #game data analysis
-#csv has columns: timestamp,modality,action,performance_state
+#csv has columns: epoch,modality,action,Game_Performance
 #accuracy = number of correct actions / total actions
 def calculate_accuracy(df):
+    #make total_actions so that it doesnt record "None"
     total_actions = len(df)
-    correct_actions = len(df[df['performance_state'] == 'CORRECT_HIT'])
+    correct_actions = len(df[df['Game_Performance'] == 'CORRECT_HIT'])
     accuracy = correct_actions / total_actions if total_actions > 0 else 0
     return accuracy
 
 def running_accuracy(df):
     #turn correct hit into a 1
-    correct_bool = df['performance_state'] == 'CORRECT_HIT'
+    correct_bool = df['Game_Performance'] == 'CORRECT_HIT'
     result = pd.DataFrame({
-        'timestamp': df['timestamp'],
+        'epoch': df['epoch'],
         'running_accuracy': correct_bool.expanding().mean() * 100
     })
     return result
@@ -219,11 +220,25 @@ def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 3. Return the figure so the GUI can capture it
     return fig
 
-def fetch_game_data():
-    script_dir = Path(__file__).resolve().parent.parent
-    raw_path = script_dir.parent / "game_session_log.csv"
-    dfgame = pd.read_csv(raw_path)  # Replace with your actual CSV file path
-    return dfgame
+
+def fetch_synced_data():
+    #fetch synced data from the directory datafiles which is in the parent directory of this script
+    script_dir = Path(__file__).resolve().parent
+    eeg_path = script_dir / "datafiles" / "synced_data.csv"
+
+    df = pd.read_csv(eeg_path)  # Replace with your actual CSV file path
+
+    #split the df into eeg and game data based on the columns
+   # df_eeg = df[['epoch', 'Fz_alpha', 'Fz_beta', 'Fz_theta', 'Cz_alpha', 'Cz_beta', 'Cz_theta', 'Pz_alpha', 'Pz_beta', 'Pz_theta']]
+    #df_game = df[['epoch', 'modality', 'action', 'performance_state']
+    
+    return df
+
+# def fetch_game_data():
+#     script_dir = Path(__file__).resolve().parent.parent
+#     raw_path = script_dir.parent / "game_session_log.csv"
+#     dfgame = pd.read_csv(raw_path)  # Replace with your actual CSV file path
+#     return dfgame
 
 
 # dfgame = fetch_game_data()  # Use the function to fetch game data

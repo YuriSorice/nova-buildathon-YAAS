@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image, ImageTk
 import json
 import matplotlib
-matplotlib.use("TkAgg")  # Forces Matplotlib to render inside Tkinter
+matplotlib.use("TkAgg")  # forces Matplotlib to render inside Tkinter
 
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
@@ -199,6 +199,7 @@ class FocusApp(ctk.CTk):
 
             # focus_level = analyze_session("eeg_results.json")
 
+            
             df_game = da.fetch_game_data()  # Fetch the game session data
             print(df_game)
             accuracy = da.calculate_accuracy(df_game) * 100
@@ -211,11 +212,6 @@ class FocusApp(ctk.CTk):
                 rolling_average_accuracy=rolling_average_accuracy_df,
             )
 
-            # Load the image
-            # raw.compute_psd().plot().savefig("eeg_results.png")  # Example of saving a plot from MNE
-            # my_image = ctk.CTkImage(light_image=Image.open("eeg_results.png"), size=(600, 300))
-
-            # self.graph_label.configure(image=my_image, text="") # Remove the text, show the image
             self.results_title.configure(
                 text="Concentration Analysis Complete")
 
