@@ -47,7 +47,7 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
         elif any(keyword in label.lower() for keyword in ['acc', 'gyro', 'batt', 'count', 'val', 'status']):
             ch_types.append('misc')
         else:
-            ch_types.append('misc')
+            ch_types.append('eeg')
 
         ch_node = ch_node.next_sibling()
 
