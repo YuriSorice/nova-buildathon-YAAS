@@ -374,7 +374,7 @@ def plot_eeg_data(df1, df2, df3):
     return fig
 
 
-def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_tar_df):
+def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_tar_df, stim):
     highdprime = False
     hightar = False
     lowtar = False
@@ -423,13 +423,10 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
     else:
         playerstate = "normal"
 
-    
     if playerstate == "optimal":
-        # increase n
-        if new_config["n_back"] < 4:
-            new_config["n_back"] += 1
-        else:
-            pass
+        if stim >= 1:
+            stim -= 0.25
+        
     print(playerstate)
     if playerstate == "overload":
         if new_config["use_audio"]:
@@ -469,11 +466,9 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
             new_config["use_color"] = False
             new_config["n_back"] = 2
 
-    else:
-        # do nothing keep config the same
-        pass
+    
     PLAYER_MODE = 1
-    return new_config
+    return new_config, playerstate, stim
 
 
 # update the game state
@@ -491,7 +486,7 @@ def update_game_state(FILE_PATH):
         # dprime_accuracy, beta_power, tar_ratio, tei_index, tbr_ratio
         # baseline eeg data
 
-
+    stim = gamestate["stim"]
     tar_df = pd.Series(gamestate["tar"]["tar"], name="tar").to_frame()
     beta_df = pd.DataFrame(gamestate["beta"])
     # baseline beta, make sure this is from the game that starts after the 60 sec
@@ -505,15 +500,15 @@ def update_game_state(FILE_PATH):
     avg_tar = tar_df['tar'].mean()
     config = gamestate["config"]
 
-    new_config = decide_game_state(
-        config, dprime, beta_df, avg_tar, baseline_beta_df, baseline_tar_df)
+    new_config, playerstate, newstim = decide_game_state(
+        config, dprime, beta_df, avg_tar, baseline_beta_df, baseline_tar_df, stim)
 
     gamestate["config"] = new_config
-    
+    gamestate["stim"] = newstim
     with open(FILE_PATH, "w") as f:
         json.dump(gamestate, f, indent=4)
 
-    return
+    return playerstate
 
 
 # what if we have an attention/challenged score based on tar, beta, and maybe tei, and also a skill score based on accuracy. Bam two axes

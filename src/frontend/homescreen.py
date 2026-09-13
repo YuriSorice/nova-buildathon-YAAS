@@ -173,7 +173,7 @@ class FocusApp(ctk.CTk):
             "Comic Sans MS", 20, "bold"), width=250, height=60, fg_color="#50B5CA", command=lambda: self.tabs.set("Home"))
         return_btn.pack(pady=20)
 
-    def build_results(self, game_score=None, running_accuracy=None, rolling_average_accuracy=None, tei=None, tbr=None, tar=None):
+    def build_results(self, game_score=None, running_accuracy=None, rolling_average_accuracy=None, tei=None, tbr=None, tar=None, playerstate=None):
         # clear previous results
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
@@ -219,9 +219,9 @@ class FocusApp(ctk.CTk):
             "Comic Sans MS", 16)).pack(pady=(2, 15))
 
         # build user feedback section
-        user_feedback = ctk.CTkFrame(
+        user_feedback1 = ctk.CTkFrame(
             self.scrollable_frame, corner_radius=15, fg_color="#1e3a3e")
-        user_feedback.pack(fill="x", padx=20, pady=20)
+        user_feedback1.pack(fill="x", padx=20, pady=20)
 
         feedback_text = (
             "You are probably wondering what these waves and ratios entail. \n"
@@ -235,9 +235,9 @@ class FocusApp(ctk.CTk):
             "Now that you have an understanding of the markers, we can look at how this affects YOU."
         )
 
-        ctk.CTkLabel(user_feedback, text="What this data means:", font=(
+        ctk.CTkLabel(user_feedback1, text="What this data means:", font=(
             "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
-        feedback_box = ctk.CTkTextbox(user_feedback, font=(
+        feedback_box = ctk.CTkTextbox(user_feedback1, font=(
             "Comic Sans MS", 16), width=800, height=320, fg_color="transparent", wrap="word")
         feedback_box.pack(pady=15, padx=15)
         feedback_box.insert("0.0", feedback_text)
@@ -245,6 +245,34 @@ class FocusApp(ctk.CTk):
         feedback_box.tag_add("center", "1.0", "end")
         feedback_box._textbox.configure(spacing1=8, spacing2=8, spacing3=8)
         feedback_box.configure(state="disabled")
+
+
+        # build user feedback section
+        user_feedback2 = ctk.CTkFrame(
+            self.scrollable_frame, corner_radius=15, fg_color="#1e3a3e")
+        user_feedback2.pack(fill="x", padx=20, pady=20)
+
+        if playerstate == "optimal":
+            feedback_text2 = "You're in the sweet spot. Right now the game difficulty is just right. Next time you play, the speed will increase."
+        elif playerstate == "bored":
+            feedback_text2 = "You're really cruising. Time to increase the difficulty."
+        elif playerstate == "overload":
+            feedback_text2 = "This difficulty may be asking a lot right now. Next run we will ease off."
+        elif playerstate == "abandoned":
+            feedback_text2 = "This doesn't seem to be grabbing your attention right now. Lets dial it back."
+        else:
+            feedback_text2 = "Run one more time to get more data."
+            
+        ctk.CTkLabel(user_feedback2, text="What this data means for YOU:", font=(
+            "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
+        feedback_box2 = ctk.CTkTextbox(user_feedback2, font=(
+            "Comic Sans MS", 16), width=800, height=90, fg_color="transparent", wrap="word")
+        feedback_box2.pack(pady=15, padx=15)
+        feedback_box2.insert("0.0", feedback_text2)
+        feedback_box2.tag_config("center", justify="center")
+        feedback_box2.tag_add("center", "1.0", "end")
+        feedback_box2._textbox.configure(spacing1=8, spacing2=8, spacing3=8)
+        feedback_box2.configure(state="disabled")
 
         # build graph display section
         graph_frame1 = ctk.CTkFrame(
@@ -333,12 +361,12 @@ class FocusApp(ctk.CTk):
             with open(FILE_PATH, "w") as f:
                 json.dump(game_state, f, indent=4)
 
-            da.update_game_state(FILE_PATH)
+            player_state = da.update_game_state(FILE_PATH)
 
             self.build_results(
                 game_score=accuracy,
                 running_accuracy=running_accuracy_df,
-                rolling_average_accuracy=rolling_average_accuracy_df, tei=tei_df, tbr=tbr_df, tar=tar_df
+                rolling_average_accuracy=rolling_average_accuracy_df, tei=tei_df, tbr=tbr_df, tar=tar_df, playerstate=player_state
             )
 
             self.results_title.configure(

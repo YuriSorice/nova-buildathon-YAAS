@@ -1,4 +1,5 @@
 
+import json
 import time
 import pygame as pg
 import random
@@ -16,8 +17,8 @@ src_folder = project_root / "src"
 if str(src_folder) not in sys.path:
     sys.path.insert(0, str(src_folder))
 
-import json
 import data_analysis.analyze_data as ad
+
 
 
 class NBackGame:
@@ -55,7 +56,7 @@ class NBackGame:
         pg.font.init()
         self.screen = pg.display.set_mode(
             (self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
-        pg.display.set_caption("2-Back Game")
+        pg.display.set_caption(f"{self.cfg["n_back"]}-Back Game")
         self.clock = pg.time.Clock()
 
         # Load audio files
@@ -119,6 +120,7 @@ class NBackGame:
             # "tei": tei_dict,
             # "tbr": tbr_dict,
             # "tar": tar_dict,
+            "stim": self.STIMULUS_DURATION
         }
         with open("game_state.json", "w") as file:
             json.dump(state, file, indent=4)
@@ -374,19 +376,22 @@ class NBackGame:
 
 
 if __name__ == "__main__":
-    
+
     config = {
         "n_back": 2,
         "use_color": True,
         "use_spatial": True,
         "use_audio": False
     }
-    
+    stim = 1.75
+
     project_root = Path(__file__).resolve().parent
     path = project_root / "game_state.json"
     with open(path, "r") as f:
         game_state = json.load(f)
     if "player_mode" in game_state and game_state["player_mode"] == 1:
         config = game_state["config"]
-    game = NBackGame(config)
+        stim = game_state["stim"]
+
+    game = NBackGame(config, stim)
     game.run()
