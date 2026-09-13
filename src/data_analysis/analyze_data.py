@@ -5,8 +5,9 @@ from pathlib import Path
 import json
 from copy import deepcopy
 from matplotlib.figure import Figure
+import scipy.stats as stats
 
-
+PLAYER_MODE = 0
 # eeg data analysis
 # csv contains 2 second window with each channel showing its frequency and power i think
 
@@ -133,6 +134,20 @@ def calculate_faa(df, channels1=['F3'], channels2=['F4']):
     return result
 
 
+def get_beta(df, channels):
+    beta_columns = []
+    for ch in channels:
+        beta_columns.append(f"{ch}_Beta")
+
+    beta_power = df[beta_columns].mean(axis=1)
+
+    result = pd.DataFrame({
+        'Epoch': df['Epoch'],
+        'beta': beta_power
+    })
+    return result
+
+
 def plot_ratio_over_time(df, ratio_column):
     plt.figure(figsize=(10, 6))
     plt.plot(df['Epoch'], df[ratio_column], label=ratio_column, color='blue')
@@ -160,19 +175,76 @@ def plot_task_engagement(tei_df):
 # game data analysis
 # csv has columns: epoch,modality,action,Game_Performance
 # accuracy = number of correct actions / total actions
+def _performance_counts(df):
+    """Return correct and total response counts for each EEG epoch."""
+    valid_outcomes = {'CORRECT_HIT', 'INATTENTION_ERROR', 'IMPULSIVITY_ERROR'}
+
+    def count_outcomes(value):
+        outcomes = str(value).split(' | ')
+        correct_count = sum(outcome == 'CORRECT_HIT' for outcome in outcomes)
+        total_count = sum(outcome in valid_outcomes for outcome in outcomes)
+        return correct_count, total_count
+
+    counts = df['Game_Performance'].map(count_outcomes)
+    return (
+        counts.map(lambda count: count[0]).astype(int),
+        counts.map(lambda count: count[1]).astype(int),
+    )
+
+
+def calculate_dprime(df):
+    """Calculate d' (d-prime) for signal detection theory:
+    d' = Z(hit rate) - Z(false alarm rate)
+    Uses the log-linear correction (Hautus, 1995) applied to counts,
+    so it's well-defined even at 0% or 100% rates or zero trials.
+    """
+    hits = len(df[df['Game_Performance'] == 'CORRECT_HIT'])
+    false_alarms = len(df[df['Game_Performance'] == 'IMPULSIVITY_ERROR'])
+    misses = len(df[df['Game_Performance'] == 'INATTENTION_ERROR'])
+
+    # Correct Rejections: everything else (rows where nothing went wrong
+    # and no target was missed)
+    total_events = hits + false_alarms + misses
+    correct_rejections = len(df) - total_events
+
+    if correct_rejections < 0:
+        raise ValueError(
+            f"correct_rejections came out negative ({correct_rejections}); "
+            "Game_Performance values don't add up to len(df) — check for "
+            "unexpected labels in the column."
+        )
+
+    n_targets = hits + misses
+    n_nontargets = false_alarms + correct_rejections
+
+    if n_targets == 0 or n_nontargets == 0:
+        # No target trials or no non-target trials in this window —
+        # d' isn't meaningfully defined.
+        return float('nan')
+
+    # Log-linear correction applied to counts (avoids 0/1 rates and
+    # divide-by-zero entirely, no special-casing needed)
+    hit_rate = (hits + 0.5) / (n_targets + 1)
+    fa_rate = (false_alarms + 0.5) / (n_nontargets + 1)
+
+    d_prime = stats.norm.ppf(hit_rate) - stats.norm.ppf(fa_rate)
+
+    return d_prime
+
+
 def calculate_accuracy(df):
-    # make total_actions so that it doesnt record "None" or NaN
-    total_actions = df['Game_Performance'].count()
-    correct_actions = len(df[df['Game_Performance'] == 'CORRECT_HIT'])
+    correct_counts, total_counts = _performance_counts(df)
+    total_actions = total_counts.sum()
+    correct_actions = correct_counts.sum()
     accuracy = correct_actions / total_actions if total_actions > 0 else 0
     return accuracy
 
 
 def running_accuracy(df):
-    # turn correct hit into a 1, and incorrect hits into a 0, then take the expanding mean and multiply by 100 to get percentage
-    correct_bool = df['Game_Performance'].map(
-        {'CORRECT_HIT': 1, 'INATTENTION_ERROR': 0, 'IMPULSIVITY_ERROR': 0})
-    running_accuracy = correct_bool.expanding().mean().ffill() * 100
+    correct_counts, total_counts = _performance_counts(df)
+    running_accuracy = (
+        correct_counts.cumsum() / total_counts.cumsum().replace(0, np.nan)
+    ).ffill().fillna(0) * 100
 
     result = pd.DataFrame({
         'Epoch': df['Epoch'],
@@ -182,13 +254,14 @@ def running_accuracy(df):
 
 
 def rolling_average_accuracy(df, window_size=4):
-
-    # turn correct hit into a 1, and incorrect hits into a 0, then take the rolling mean and multiply by 100 to get percentage
-    correct_bool = df['Game_Performance'].map(
-        {'CORRECT_HIT': 1, 'INATTENTION_ERROR': 0, 'IMPULSIVITY_ERROR': 0})
+    correct_counts, total_counts = _performance_counts(df)
+    rolling_correct = correct_counts.rolling(
+        window=window_size, min_periods=1).sum()
+    rolling_total = total_counts.rolling(
+        window=window_size, min_periods=1).sum().replace(0, np.nan)
     result = pd.DataFrame({
         'Epoch': df['Epoch'],
-        'rolling_average_accuracy': correct_bool.rolling(window=window_size, min_periods=1).mean().ffill() * 100
+        'rolling_average_accuracy': (rolling_correct / rolling_total).ffill().fillna(0) * 100
     })
     return result
 
@@ -259,7 +332,9 @@ def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 3. Return the figure so the GUI can capture it
     return fig
 
-#df1 is tei, df2 is tbr, df3 is tar
+# df1 is tei, df2 is tbr, df3 is tar
+
+
 def plot_eeg_data(df1, df2, df3):
     # 1. Create an explicit Figure object instead of using plt.figure()
     fig = Figure(figsize=(10, 6), dpi=100)
@@ -286,8 +361,6 @@ def plot_eeg_data(df1, df2, df3):
     ax.plot(df3['Epoch'], df3['tar'], label='TAR',
             color="#FF5555", linewidth=2, marker='o')
     ax.fill_between(df3['Epoch'], df3['tar'], color="#FF5555", alpha=0.1)
-    
-
 
     ax.set_xlabel('Epochs', color='white', fontsize=12,
                   fontname='Comic Sans MS')
@@ -301,18 +374,15 @@ def plot_eeg_data(df1, df2, df3):
     return fig
 
 
-
-
 def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_tar_df):
     highdprime = False
     hightar = False
     lowtar = False
-    betatrend = 0 #0 stable, 1 increase, 2 decrease
+    betatrend = 0  # 0 stable, 1 increase, 2 decrease
     lowbeta = False
     new_config = deepcopy(config)
 
-
-    #calculate high and low value for tar based on baseline_tar_df, if the average tar is more than 2 standard deviations above the mean of baseline_tar_df, then high tar, if less than 2 standard deviations below the mean of baseline_tar_df, then low tar
+    # calculate high and low value for tar based on baseline_tar_df, if the average tar is more than 2 standard deviations above the mean of baseline_tar_df, then high tar, if less than 2 standard deviations below the mean of baseline_tar_df, then low tar
     baseline_tar_mean = baseline_tar_df['tar'].mean()
     baseline_tar_std = baseline_tar_df['tar'].std()
     if tar > baseline_tar_mean + 2 * baseline_tar_std:
@@ -322,24 +392,26 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
 
     if dprime > 1.5:
         highdprime = True
-
-    if beta_df['beta'].mean() < baseline_beta_df['beta'].mean():
+    if beta_df['beta'].mean() < baseline_beta_df['baseline_beta'].mean():
         lowbeta = True
-
-
     slope, intercept, r_value, p_value, std_err = stats.linregress(
-    beta_df['Epoch'], beta_df['beta']
+        beta_df['Epoch'], beta_df['beta']
     )
-
     if p_value < 0.05:
         betatrend = 1 if slope > 0 else 2
     else:
         betatrend = 0
 
+    print(betatrend)
+    print(hightar)
+    print(highdprime)
+    print(lowtar)
+    print(lowbeta)
+
     if hightar and betatrend == 0 and highdprime:
         playerstate = "optimal"
 
-    elif hightar and betatrend == 2 and not highdprime: 
+    elif hightar and betatrend == 2 and not highdprime:
         playerstate = "overload"
 
     elif lowtar and highdprime:
@@ -351,24 +423,24 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
     else:
         playerstate = "normal"
 
-
+    
     if playerstate == "optimal":
-        #increase n
+        # increase n
         if new_config["n_back"] < 4:
             new_config["n_back"] += 1
         else:
             pass
-
+    print(playerstate)
     if playerstate == "overload":
         if new_config["use_audio"]:
             new_config["use_audio"] = False
         elif new_config["use_color"]:
             new_config["use_color"] = False
-        #dont reduce n back unless everything else is already off, and n back is greater than 2
+        # dont reduce n back unless everything else is already off, and n back is greater than 2
         elif new_config["n_back"] > 2:
             new_config["n_back"] -= 1
         else:
-            #already at easiest setting
+            # already at easiest setting
             new_config["use_audio"] = False
             new_config["use_color"] = False
             new_config["n_back"] = 2
@@ -382,9 +454,9 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
             new_config["n_back"] += 1
         else:
             new_config["n_back"] += 1
-        
+
     if playerstate == "abandoned":
-        #decrease n back first, and then turn off color and audio if n back is already at 2
+        # decrease n back first, and then turn off color and audio if n back is already at 2
         if new_config["n_back"] > 2:
             new_config["n_back"] -= 1
         elif new_config["use_color"]:
@@ -392,63 +464,60 @@ def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_t
         elif new_config["use_audio"]:
             new_config["use_audio"] = False
         else:
-            #already at easiest setting
+            # already at easiest setting
             new_config["use_audio"] = False
             new_config["use_color"] = False
             new_config["n_back"] = 2
 
-
     else:
-        #do nothing keep config the same
+        # do nothing keep config the same
         pass
-
-
+    PLAYER_MODE = 1
     return new_config
 
 
-
-#update the game state
-def update_game_state():
+# update the game state
+def update_game_state(FILE_PATH):
     # Read the JSON file
     try:
-        with open("game_state.json""r") as f:
+        with open(FILE_PATH, "r") as f:
             gamestate = json.load(f)
     except FileNotFoundError:
         # If the file doesn't exist, bleh
         print(f"[ERROR] game_state.json not found.")
 
-    #game_state is json file containing:
-        #config, use_space/use_audio/use_color:true or false, n-back: number
-        #dprime_accuracy, beta_power, tar_ratio, tei_index, tbr_ratio
-        #baseline eeg data
+    # game_state is json file containing:
+        # config, use_space/use_audio/use_color:true or false, n-back: number
+        # dprime_accuracy, beta_power, tar_ratio, tei_index, tbr_ratio
+        # baseline eeg data
 
-    tar_df = pd.DataFrame(gamestate["tar"]["tar"])
 
-    beta_df = pd.DataFrame(gamestate["beta"]["beta"])
-
-    #baseline beta, make sure this is from the game that starts after the 60 sec
-    #make baseline tar also from game that starts after 60 sec
-    baseline_beta_df = pd.DataFrame(gamestate["baseline_beta"]["beta"])
-    baseline_tar_df = pd.DataFrame(gamestate["baseline_tar"]["tar"])
+    tar_df = pd.Series(gamestate["tar"]["tar"], name="tar").to_frame()
+    beta_df = pd.DataFrame(gamestate["beta"])
+    # baseline beta, make sure this is from the game that starts after the 60 sec
+    # make baseline tar also from game that starts after 60 sec
+    baseline_beta_df = pd.DataFrame(gamestate["baseline_beta"])
+    baseline_beta_df = baseline_beta_df.rename(
+        columns={"beta": "baseline_beta"})
+    baseline_tar_df = pd.Series(
+        gamestate["baseline_tar"]["tar"], name="tar").to_frame()
     dprime = gamestate["dprime"]
-
     avg_tar = tar_df['tar'].mean()
     config = gamestate["config"]
 
-
-    new_config = decide_game_state(config, dprime, beta_df, avg_tar, baseline_beta_df, baseline_tar_df)
+    new_config = decide_game_state(
+        config, dprime, beta_df, avg_tar, baseline_beta_df, baseline_tar_df)
 
     gamestate["config"] = new_config
     
-    with open("game_state.json", "w") as f:
-        json.dump({gamestate}, f, indent=4)
+    with open(FILE_PATH, "w") as f:
+        json.dump(gamestate, f, indent=4)
 
     return
 
 
-
-#what if we have an attention/challenged score based on tar, beta, and maybe tei, and also a skill score based on accuracy. Bam two axes
-#def analysis_chart():
+# what if we have an attention/challenged score based on tar, beta, and maybe tei, and also a skill score based on accuracy. Bam two axes
+# def analysis_chart():
 
 
 def fetch_synced_data(filename="synced_data_alan_focused.csv"):
@@ -476,47 +545,4 @@ def fetch_synced_data(filename="synced_data_alan_focused.csv"):
 
     return df
 
-# def fetch_game_data():
-#     script_dir = Path(__file__).resolve().parent.parent
-#     raw_path = script_dir.parent / "game_session_log.csv"
-#     dfgame = pd.read_csv(raw_path)  # Replace with your actual CSV file path
-#     return dfgame
 
-# plot_tei(calculate_task_engagement(fetch_synced_data(),["EEG_00",'EEG_01', 'EEG_02','EEG_03','EEG_04','EEG_05','EEG_06','EEG_07','EEG_08']))
-# plot_ratio_over_time(calculate_tbr(fetch_synced_data(),["EEG_00",'EEG_01', 'EEG_02','EEG_03','EEG_04','EEG_05','EEG_06','EEG_07','EEG_08']),"tbr")
-# plot_ratio_over_time(calculate_tar(fetch_synced_data(),["EEG_00",'EEG_01', 'EEG_02','EEG_03','EEG_04'],['EEG_05','EEG_06','EEG_07','EEG_08']),"tar")
-# plot_ratio_over_time(calculate_faa(fetch_synced_data(),["EEG_00"],['EEG_01']),"faa")
-
-# df = fetch_synced_data("synced_data_alan_focused.csv")
-
-# tei_df = calculate_task_engagement(df)
-# tbr_df = calculate_tbr(df, channels=['Fz','C3', 'C4','Cz','Pz','PO7','PO8','Oz'])
-# tar_df = calculate_tar(df, channels1=['Fz','C3', 'C4','Cz'], channels2=['PO7','PO8','Oz', 'Pz'])
-
-
-# plot_all_ratios(tei_df, tbr_df, tar_df)
-
-# plot_task_engagement(tei_df)
-
-# plot_both_accuracies_matplotlib(running_accuracy(df), rolling_average_accuracy(df, window_size=5))
-
-# dfgame = fetch_game_data()  # Use the function to fetch game data
-# #df = pd.read_csv('eeg_data.csv')  # Replace with your actual CSV file path
-# accuracy = calculate_accuracy(dfgame)
-# print(accuracy)
-# running_accuracy = running_accuracy(fetch_synced_data())
-# print(running_accuracy)
-# rolling_average_accuracy = rolling_average_accuracy(fetch_synced_data(), window_size=8)
-# print(rolling_average_accuracy)
-
-# running_accuracy_df = running_accuracy(dfgame)
-# print(running_accuracy_df)
-# rolling_average_accuracy_df = rolling_average_accuracy(dfgame, window_size=6)
-# print(rolling_average_accuracy_df)
-
-
-# average ratios over entire session:
-# average_tei = tei_df['tei'].mean()
-# average_tbr = tbr_df['tbr'].mean()
-# average_tar = tar_df['tar'].mean()
-# average_faa = faa_df['faa'].mean()

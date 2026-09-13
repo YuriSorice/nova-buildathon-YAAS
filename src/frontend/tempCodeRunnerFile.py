@@ -1,1 +1,2 @@
-import src.data_analysis.analyze_data as da  # Import your data analysis module
+project_root = Path(__file__).resolve().parents[2]
+src_folder = project_root / "src"

@@ -1,4 +1,3 @@
-import data_analysis.analyze_data as da  # Import your data analysis module
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import customtkinter as ctk
@@ -8,7 +7,11 @@ from pathlib import Path
 from PIL import Image, ImageTk
 import json
 import matplotlib
+import os
 matplotlib.use("TkAgg")  # forces Matplotlib to render inside Tkinter
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+FILE_PATH = BASE_DIR / "games" / "game_state.json"
 
 project_root = Path(__file__).resolve().parents[2]
 src_folder = project_root / "src"
@@ -16,6 +19,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 if str(src_folder) not in sys.path:
     sys.path.insert(0, str(src_folder))
+
+import data_analysis.analyze_data as da  # Import your data analysis module
+
 
 
 ctk.set_appearance_mode("System")
@@ -26,7 +32,7 @@ class FocusApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("MindGames")
-        self.geometry("1000x650")
+        self.geometry("1100x750")
 
         # create the tabbed navigation
         self.tabs = ctk.CTkTabview(self, segmented_button_selected_color="#50B5CA",
@@ -57,7 +63,8 @@ class FocusApp(ctk.CTk):
         game_explanation = (
             "This game is an exercise that challenges your working memory and your sustained focus.\n\n"
             "• The Objective: Watch the sequence of circles appearing on screen.\n"
-            "• Press (J) if the current item matches the item shown N turns ago.\n"
+            "• Press the corresponding key if the current state of the circle matches its state shown N turns ago.\n"
+            "• For example, the color of the circle, its location, or the audio played.\n"
             "• Keep your jaw relaxed and your head still.\n"
             "• The game will adjust difficulty depending on your performance."
         )
@@ -97,6 +104,9 @@ class FocusApp(ctk.CTk):
         self.calibration_btn.configure(state="disabled", text="Calibrating...")
         self.btn_game1.configure(state="disabled")
 
+        with open(FILE_PATH, "w") as f:
+            json.dump({}, f, indent=4)
+
         project_root = Path(__file__).resolve().parents[2]
         src_folder = project_root / "src"
 
@@ -105,6 +115,7 @@ class FocusApp(ctk.CTk):
         # passes a "calibration" argument to game script so it knows to run the 60s version
         self.game_process = subprocess.Popen(
             [sys.executable, "-c", python_command], cwd=str(src_folder))
+
 
         self.check_game_status()
 
@@ -260,7 +271,7 @@ class FocusApp(ctk.CTk):
         graph_frame2.pack(fill="both", padx=20, pady=(2, 5))
 
         # create a Matplotlib figure and axis for the graph
-        fig2 = da.plot_eeg_data(tbr, "tbr")
+        fig2 = da.plot_eeg_data(tei, tbr, tar)
         fig2.tight_layout()
 
         # convert the Matplotlib figure to a Tkinter-compatible canvas and display it
@@ -282,6 +293,14 @@ class FocusApp(ctk.CTk):
         try:
             # Fetch the game session data
             df_data = da.fetch_synced_data(sync_events_path)
+            baseline_df = da.fetch_synced_data("synced_baseline*.csv")
+            print(baseline_df)
+            baseline_tar_df = da.calculate_tar(baseline_df,
+                                               ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4'], ['Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+            baseline_beta_df = da.get_beta(baseline_df, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+            dprime = da.calculate_dprime(baseline_df)
+            print(dprime)
+            print("aksdiuhdiqwhidwhiduqwuhdqh")
             print(df_data)
             tei_df = da.calculate_task_engagement(
                 df_data, ['Mock_1', 'Mock_2', 'Mock_3'])
@@ -289,10 +308,37 @@ class FocusApp(ctk.CTk):
                 df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
             tar_df = da.calculate_tar(df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4'], [
                                       'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+            beta_df = da.get_beta(df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
             accuracy = int(da.calculate_accuracy(df_data) * 100)
             running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
                 df_data, window_size=3)
+
+            BASE_DIR = Path(__file__).resolve().parent.parent
+            FILE_PATH = BASE_DIR / "games" / "game_state.json"
+
+            with open(FILE_PATH, "r") as f:
+                game_state = json.load(f)
+
+            data = {
+                "accuracy": accuracy,
+                "tei": tei_df.to_dict(),
+                "tbr": tbr_df.to_dict(),
+                "tar": tar_df.to_dict(),
+                "beta": beta_df.to_dict(),
+                "baseline_beta": baseline_beta_df.to_dict(),
+                "baseline_tar": baseline_tar_df.to_dict(),
+                "dprime": dprime if dprime==dprime else 1.5,
+                "player_mode": 1
+            }
+
+            game_state.update(data)
+
+            with open(FILE_PATH, "w") as f:
+                json.dump(game_state, f, indent=4)
+
+            da.update_game_state(FILE_PATH)
+
             self.build_results(
                 game_score=accuracy,
                 running_accuracy=running_accuracy_df,
