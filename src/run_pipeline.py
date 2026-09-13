@@ -276,7 +276,83 @@ def run_baseline():
 
     
 def run_baseline_real():
-    l = 1
+    python_exe = sys.executable  
+        
+    base_dir = Path(__file__).resolve().parent
+    data_extraction_dir = base_dir / "data_analysis"
+    game_dir = base_dir / "games" 
+
+    # 0. Safety check: Ensure no leftover stop flag exists before we even begin
+    stop_flag = data_extraction_dir / "stop_recording.txt"
+    if stop_flag.exists():
+        stop_flag.unlink()
+
+    print("1. Recording the real idle baseline...")
+    
+    # --- IDLE RECORDING BLOCK ---
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Pass stop_flag directly
+        future_idle = executor.submit(rl.record_eeg_stream, "baseline_raw.fif", stop_flag)
+        
+        # Wait 10 seconds to gather idle baseline data
+        time.sleep(10)
+        
+        print("Stopping Idle Recording (Creating stop flag)...")
+        stop_flag.touch() 
+        
+        # Capture the actual return value once it safely closes
+        raw_idle_eeg_path = future_idle.result()
+        
+    print("   -> Idle Recorder successfully closed!")
+
+    # Clean up the flag BEFORE starting the next recording
+    if stop_flag.exists():
+        stop_flag.unlink()
+
+    print("\n2. Running Baseline Data Extraction...")
+    processed_output_path_baseline = de.process_eeg_file(raw_idle_eeg_path, "datafiles/baseline.csv")
+    print(f"Saved baseline no activity to {processed_output_path_baseline}")
+
+
+    print("\nStarting real baseline activity...")
+    # Be sure to include log_filename here if you haven't permanently defaulted it in NBackGame
+    baseline_game = nb.NBackGame(
+        config={
+            "n_back": 1,
+            "use_color": False,
+            "use_spatial": True,
+            "use_audio": False
+        },
+        log_filename="baseline_game_session.csv" 
+    )
+    
+    # --- ACTIVE RECORDING BLOCK ---
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Start active recording
+        future_active = executor.submit(rl.record_eeg_stream, "baseline_active_raw.fif", stop_flag)
+        
+        try:
+            # Run the game
+            game_log_filepath = baseline_game.run()
+            
+        finally:
+            # Guarantee the flag triggers even if the game crashes or is closed
+            print("Stopping Active Scripts (Creating stop flag)...")
+            stop_flag.touch() 
+
+        # Capture the actual return value once it safely closes
+        raw_active_eeg_path = future_active.result()
+    
+    print("   -> Active Recorder successfully closed!")
+
+    processed_output_path = de.process_eeg_file(raw_active_eeg_path, "datafiles/baseline_active_processed.csv")
+    se.sync_game_to_eeg(raw_active_eeg_path, processed_output_path, game_log_filepath, "datafiles/synced_baseline.csv")
+
+    # Final cleanup
+    if stop_flag.exists():
+        stop_flag.unlink()
+    
+    print("\n Real Baseline Pipeline Complete!")
 
 
 if __name__ == "__main__":
