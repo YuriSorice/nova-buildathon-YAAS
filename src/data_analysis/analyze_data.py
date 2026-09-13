@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import json
+from copy import deepcopy
 from matplotlib.figure import Figure
 
 
@@ -257,8 +259,8 @@ def plot_both_accuracies(running_accuracy_df, rolling_average_accuracy_df):
     # 3. Return the figure so the GUI can capture it
     return fig
 
-
-def plot_eeg_data(df, ratio):
+#df1 is tei, df2 is tbr, df3 is tar
+def plot_eeg_data(df1, df2, df3):
     # 1. Create an explicit Figure object instead of using plt.figure()
     fig = Figure(figsize=(10, 6), dpi=100)
     fig.patch.set_facecolor("#2b2b2b")
@@ -273,20 +275,180 @@ def plot_eeg_data(df, ratio):
         spine.set_color("#50B5CA")
 
     # 2. Plot on the explicit axis (ax) instead of pyplot (plt)
-    ax.plot(df['Epoch'], df[ratio], label=ratio,
+    ax.plot(df1['Epoch'], df1['tei'], label='TEI',
             color="#50B5CA", linewidth=2, marker='o')
-    ax.fill_between(df['Epoch'], df[ratio], color="#50B5CA", alpha=0.1)
+    ax.fill_between(df1['Epoch'], df1['tei'], color="#50B5CA", alpha=0.1)
+
+    ax.plot(df2['Epoch'], df2['tbr'], label='TBR',
+            color="#FF9900", linewidth=2, marker='o')
+    ax.fill_between(df2['Epoch'], df2['tbr'], color="#FF9900", alpha=0.1)
+
+    ax.plot(df3['Epoch'], df3['tar'], label='TAR',
+            color="#FF5555", linewidth=2, marker='o')
+    ax.fill_between(df3['Epoch'], df3['tar'], color="#FF5555", alpha=0.1)
+    
+
 
     ax.set_xlabel('Epochs', color='white', fontsize=12,
                   fontname='Comic Sans MS')
-    ax.set_ylabel(f"{ratio}", color='white',
+    ax.set_ylabel("Ratio", color='white',
                   fontsize=12, fontname='Comic Sans MS')
-    ax.set_title(f'{ratio} Over Time', color='white',
+    ax.set_title(f'EEG Ratios Over Time', color='white',
                  fontsize=16, fontname='Comic Sans MS')
     ax.legend()
     ax.grid(True)
 
     return fig
+
+
+
+
+def decide_game_state(config, dprime, beta_df, tar, baseline_beta_df, baseline_tar_df):
+    highdprime = False
+    hightar = False
+    lowtar = False
+    betatrend = 0 #0 stable, 1 increase, 2 decrease
+    lowbeta = False
+    new_config = deepcopy(config)
+
+
+    #calculate high and low value for tar based on baseline_tar_df, if the average tar is more than 2 standard deviations above the mean of baseline_tar_df, then high tar, if less than 2 standard deviations below the mean of baseline_tar_df, then low tar
+    baseline_tar_mean = baseline_tar_df['tar'].mean()
+    baseline_tar_std = baseline_tar_df['tar'].std()
+    if tar > baseline_tar_mean + 2 * baseline_tar_std:
+        hightar = True
+    elif tar < baseline_tar_mean - 2 * baseline_tar_std:
+        lowtar = True
+
+    if dprime > 1.5:
+        highdprime = True
+
+    if beta_df['beta'].mean() < baseline_beta_df['beta'].mean():
+        lowbeta = True
+
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(
+    beta_df['Epoch'], beta_df['beta']
+    )
+
+    if p_value < 0.05:
+        betatrend = 1 if slope > 0 else 2
+    else:
+        betatrend = 0
+
+    if hightar and betatrend == 0 and highdprime:
+        playerstate = "optimal"
+
+    elif hightar and betatrend == 2 and not highdprime: 
+        playerstate = "overload"
+
+    elif lowtar and highdprime:
+        playerstate = "bored"
+
+    elif lowtar and lowbeta:
+        playerstate = "abandoned"
+
+    else:
+        playerstate = "normal"
+
+
+    if playerstate == "optimal":
+        #increase n
+        if new_config["n_back"] < 4:
+            new_config["n_back"] += 1
+        else:
+            pass
+
+    if playerstate == "overload":
+        if new_config["use_audio"]:
+            new_config["use_audio"] = False
+        elif new_config["use_color"]:
+            new_config["use_color"] = False
+        #dont reduce n back unless everything else is already off, and n back is greater than 2
+        elif new_config["n_back"] > 2:
+            new_config["n_back"] -= 1
+        else:
+            #already at easiest setting
+            new_config["use_audio"] = False
+            new_config["use_color"] = False
+            new_config["n_back"] = 2
+
+    if playerstate == "bored":
+        if not new_config["use_color"]:
+            new_config["use_color"] = True
+        elif not new_config["use_audio"]:
+            new_config["use_audio"] = True
+        elif new_config["n_back"] < 4:
+            new_config["n_back"] += 1
+        else:
+            new_config["n_back"] += 1
+        
+    if playerstate == "abandoned":
+        #decrease n back first, and then turn off color and audio if n back is already at 2
+        if new_config["n_back"] > 2:
+            new_config["n_back"] -= 1
+        elif new_config["use_color"]:
+            new_config["use_color"] = False
+        elif new_config["use_audio"]:
+            new_config["use_audio"] = False
+        else:
+            #already at easiest setting
+            new_config["use_audio"] = False
+            new_config["use_color"] = False
+            new_config["n_back"] = 2
+
+
+    else:
+        #do nothing keep config the same
+        pass
+
+
+    return new_config
+
+
+
+#update the game state
+def update_game_state():
+    # Read the JSON file
+    try:
+        with open("game_state.json""r") as f:
+            gamestate = json.load(f)
+    except FileNotFoundError:
+        # If the file doesn't exist, bleh
+        print(f"[ERROR] game_state.json not found.")
+
+    #game_state is json file containing:
+        #config, use_space/use_audio/use_color:true or false, n-back: number
+        #dprime_accuracy, beta_power, tar_ratio, tei_index, tbr_ratio
+        #baseline eeg data
+
+    tar_df = pd.DataFrame(gamestate["tar"]["tar"])
+
+    beta_df = pd.DataFrame(gamestate["beta"]["beta"])
+
+    #baseline beta, make sure this is from the game that starts after the 60 sec
+    #make baseline tar also from game that starts after 60 sec
+    baseline_beta_df = pd.DataFrame(gamestate["baseline_beta"]["beta"])
+    baseline_tar_df = pd.DataFrame(gamestate["baseline_tar"]["tar"])
+    dprime = gamestate["dprime"]
+
+    avg_tar = tar_df['tar'].mean()
+    config = gamestate["config"]
+
+
+    new_config = decide_game_state(config, dprime, beta_df, avg_tar, baseline_beta_df, baseline_tar_df)
+
+    gamestate["config"] = new_config
+    
+    with open("game_state.json", "w") as f:
+        json.dump({gamestate}, f, indent=4)
+
+    return
+
+
+
+#what if we have an attention/challenged score based on tar, beta, and maybe tei, and also a skill score based on accuracy. Bam two axes
+#def analysis_chart():
 
 
 def fetch_synced_data(filename="synced_data_alan_focused.csv"):
