@@ -1,3 +1,4 @@
+import data_analysis.analyze_data as da  # Import your data analysis module
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import customtkinter as ctk
@@ -16,7 +17,6 @@ if str(project_root) not in sys.path:
 if str(src_folder) not in sys.path:
     sys.path.insert(0, str(src_folder))
 
-import data_analysis.analyze_data as da  # Import your data analysis module
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -97,7 +97,7 @@ class FocusApp(ctk.CTk):
         self.calibration_btn.configure(state="disabled", text="Calibrating...")
         self.btn_game1.configure(state="disabled")
 
-        project_root = Path(__file__).resolve().parent[2]
+        project_root = Path(__file__).resolve().parents[2]
         src_folder = project_root / "src"
 
         python_command = "from run_pipeline import run_baseline; run_baseline()"
@@ -116,7 +116,7 @@ class FocusApp(ctk.CTk):
 
         project_root = Path(__file__).resolve().parents[2]
         src_folder = project_root / "src"
-        python_command = "from run_pipeline import run_pipeline; run_pipeline('synced_data_alan_focused.csv')"
+        python_command = "from run_pipeline import run_pipeline; run_pipeline()"
 
         # runs normal game
         self.game_process = subprocess.Popen(
@@ -137,19 +137,25 @@ class FocusApp(ctk.CTk):
             if self.is_calibration_run:
                 self.show_calibration_complete()
             else:
-                self.process_and_display_data()
+                datafiles_dir = src_folder / "datafiles"
+                sync_events_files = sorted(
+                    datafiles_dir.glob("synced_data_*.csv"),
+                    key=lambda path: path.stat().st_mtime,
+                )
+                sync_events_path = sync_events_files[-1] if sync_events_files else None
+                self.process_and_display_data(sync_events_path)
 
     def show_calibration_complete(self):
         # switch to results
-        self.tab.set("Results")
+        self.tabs.set("Results")
 
         # clear placeholders
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
 
-        prompt_label = ctk.CTkLabel(
+        self.results_title = ctk.CTkLabel(
             self.scrollable_frame, text="Calibration Complete.\nBaseline recorded.\nYou may begin the real test.", font=("Comic Sans MS", 24))
-        prompt_label.pack(pady=(100, 30))
+        self.results_title.pack(pady=(100, 30))
 
         # Button to return to home
         return_btn = ctk.CTkButton(self.scrollable_frame, text="Return to Home Tab", font=(
@@ -267,27 +273,22 @@ class FocusApp(ctk.CTk):
         # render the canvas to ensure it displays correctly
         canvas_widget2.pack(fill="both", expand=True, padx=5, pady=5)
 
-    def process_and_display_data(self):
+    def process_and_display_data(self, sync_events_path=None):
         # switch the UI to the Results tab
         self.tabs.set("Results")
         self.results_title.configure(text="Processing EEG Data...")
         self.update()  # force the UI to update immediately so the user sees the "Processing" text
 
         try:
-            # with open("eeg_results.json", "r") as file:
-            #     game_data = json.load(file)
-            #     score = game_data.get("game_score", "N/A")
-
-            # focus_level = analyze_session("eeg_results.json")
-
             # Fetch the game session data
-            df_data = da.fetch_synced_data("synced_data_alan_focused.csv")
+            df_data = da.fetch_synced_data(sync_events_path)
             print(df_data)
-            tei_df = da.calculate_task_engagement(df_data)
+            tei_df = da.calculate_task_engagement(
+                df_data, ['Mock_1', 'Mock_2', 'Mock_3'])
             tbr_df = da.calculate_tbr(
-                df_data, ['Fz', 'C3', 'C4', 'Cz', 'Pz', 'PO7', 'PO8', 'Oz'])
-            tar_df = da.calculate_tar(df_data, ['Fz', 'C3', 'C4', 'Cz'], [
-                                      'PO7', 'PO8', 'Oz', 'Pz'])
+                df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+            tar_df = da.calculate_tar(df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4'], [
+                                      'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
             accuracy = int(da.calculate_accuracy(df_data) * 100)
             running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
