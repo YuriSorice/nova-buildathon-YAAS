@@ -2,6 +2,7 @@ import time
 import pygame as pg
 import random
 import csv
+import glob
 from pathlib import Path
 import sys
 
@@ -82,6 +83,10 @@ class NBackGame:
         
     def save_state(self):
         df = ad.fetch_synced_data("synced_data_alan_focused.csv")
+
+        #baseline csv is synced_baseline plus a bunch of dates so if any file name starts with synced_baseline_ use that file
+        baseline_df = ad.fetch_synced_data("synced_baseline*.csv")
+
         accuracy = int(ad.calculate_accuracy(df))
         tei_df = ad.calculate_task_engagement(df)
         tei_dict = tei_df.to_dict()
@@ -89,12 +94,21 @@ class NBackGame:
         tbr_dict = tbr_df.to_dict()
         tar_df = ad.calculate_tar(df, channels1=['Fz','C3', 'C4','Cz'], channels2=['PO7','PO8','Oz', 'Pz'])
         tar_dict = tar_df.to_dict()
+        baseline_tar_df = ad.calculate_tar(baseline_df, channels=['Fz','C3', 'C4','Cz','Pz','PO7','PO8','Oz'])
+        baseline_tar_dict = baseline_tar_df.to_dict()
+        baseline_beta_df = baseline_df[['Fz_Beta', 'C3_Beta', 'C4_Beta', 'Cz_Beta', 'Pz_Beta', 'PO7_Beta', 'PO8_Beta', 'Oz_Beta']].mean()
+        baseline_beta_dict = baseline_beta_df.to_dict()
+        dprime = ad.calculate_dprime(df)
+
         state = {
             "config" : self.cfg,
             "accuracy" : accuracy,
             "tei" : tei_dict,
             "tbr" : tbr_dict,
-            "tar" : tar_dict
+            "tar" : tar_dict,
+            "baseline_beta": baseline_beta_dict,
+            "baseline_tar": baseline_tar_dict,
+            "dprime": dprime
         }
         with open("game_state.json", "w") as file:
             json.dump(state, file, indent=4)
