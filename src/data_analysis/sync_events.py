@@ -63,6 +63,7 @@ def sync_game_to_eeg(raw_fif_path, eeg_csv_path, game_csv_path, output_path):
 
     eeg_df.to_csv(output_path, index=False)
     print(f"Synchronized output saved to {output_path}")
+    return output_path
 
 if __name__ == "__main__":
     sync_game_to_eeg(

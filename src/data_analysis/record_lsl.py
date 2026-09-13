@@ -8,7 +8,7 @@ import pylsl
 from pylsl import StreamInlet, resolve_byprop, resolve_streams
 from pathlib import Path
 
-def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
+def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif", stop_flag_path="data_analysis/stop_recording.txt"):
     """Uses a StreamInlet to place incoming data chunks from lsl into a file for offline processing."""
     print("Searching for LSL EEG Stream...")
     streams = resolve_byprop('type', 'EEG', timeout=5.0)
@@ -84,7 +84,9 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
     try:
         first = True
         while True:
-            if Path("stop_recording.txt").exists():
+            print("looking for flag")
+            
+            if Path(stop_flag_path).exists():
                 print("\n[RECORDER] Stop signal received! Exiting loop")
                 break
             samples, timestamps = inlet.pull_chunk(timeout=1.0, max_samples=512)
@@ -96,6 +98,7 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
                     eeg_start_unix = all_timestamps[0] + offset 
                     print(f"EEG Recording started at Unix Time: {eeg_start_unix}")
                     first = False
+            time.sleep(0.001)
 
     except KeyboardInterrupt:
         print("\n[RECORDER] Stop signal received! Exiting loop...")
@@ -121,6 +124,8 @@ def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif"):
     print(f"[RECORDER] Writing to {output_path}...")
     raw.save(output_path, overwrite=True)
     print("[RECORDER] File saved successfully!")
+
+    return output_path
 
 if __name__ == "__main__":
     record_eeg_stream()

@@ -15,7 +15,7 @@ import json
 
 class NBackGame:
 
-    def __init__(self, config, stim=1.75, game_length=15, num_match=3):
+    def __init__(self, config, stim=1.75, game_length=15, num_match=3, log_filename="game_session_log.csv"):
         self.SCREEN_WIDTH = 800
         self.SCREEN_HEIGHT = 600
         self.FPS = 60
@@ -74,7 +74,7 @@ class NBackGame:
         self.turn_counter = 0
 
         self.session_sequence = self.generate_sequence(self.GAME_LENGTH, self.MATCH_COUNT)
-        self.log_filename = "game_session_log.csv"
+        self.log_filename = log_filename
         with open(self.log_filename, "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow(["timestamp", "modality", "action", "performance_state"])
@@ -326,7 +326,9 @@ class NBackGame:
 
         last_switch_time = time.perf_counter()
         self.save_state()
+
         pg.quit()
+        return self.log_filename
 
 
 if __name__ == "__main__":

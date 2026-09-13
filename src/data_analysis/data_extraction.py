@@ -79,7 +79,7 @@ def extract_bandpowers(epochs_data, sfreq, ch_names, bands):
 
 def process_eeg_file(input_path, output_path):
     """Loads, preprocessed, creates epochs, extracts bandpowers"""
-    print(f"Loading file: {input_path.name}")
+    print(f"Loading file: {input_path}") # Temporarily took this out
 
     # raw = mne.io.read_raw_ant(input_path, preload=True, verbose=False) # cnt files
     raw = mne.io.read_raw_fif(input_path, preload=True,
@@ -110,7 +110,9 @@ def process_eeg_file(input_path, output_path):
     df_features.to_csv(output_path, index=False)
 
     print(
-        f"Extraction complete, Saved {len(df_features)} epochs to {output_path.name}")
+        f"Extraction complete, Saved {len(df_features)} epochs to {output_path}")
+
+    return output_path
 
 
 if __name__ == "__main__":
