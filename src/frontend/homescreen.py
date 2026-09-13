@@ -110,7 +110,7 @@ class FocusApp(ctk.CTk):
         project_root = Path(__file__).resolve().parents[2]
         src_folder = project_root / "src"
 
-        python_command = "from run_pipeline import run_baseline; run_baseline()"
+        python_command = "from run_pipeline import run_baseline_real; run_baseline_real()"
 
         # passes a "calibration" argument to game script so it knows to run the 60s version
         self.game_process = subprocess.Popen(
@@ -127,7 +127,7 @@ class FocusApp(ctk.CTk):
 
         project_root = Path(__file__).resolve().parents[2]
         src_folder = project_root / "src"
-        python_command = "from run_pipeline import run_pipeline; run_pipeline()"
+        python_command = "from run_pipeline import run_pipeline_real; run_pipeline_real()"
 
         # runs normal game
         self.game_process = subprocess.Popen(
@@ -296,23 +296,19 @@ class FocusApp(ctk.CTk):
             baseline_df = da.fetch_synced_data("synced_baseline*.csv")
             print(baseline_df)
             baseline_tar_df = da.calculate_tar(baseline_df,
-                                               ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4'], ['Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
-            baseline_beta_df = da.get_beta(baseline_df, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+                                                ['Fz'], ['Pz', 'PO7', 'Oz', 'PO8'])
+            baseline_beta_df = da.get_beta(baseline_df, ['Fz', 'C3', 'Cz', 'C4', 'Pz', 'PO7', 'Oz', 'PO8'])
             dprime = da.calculate_dprime(baseline_df)
-            print(dprime)
-            print("aksdiuhdiqwhidwhiduqwuhdqh")
-            print(df_data)
             tei_df = da.calculate_task_engagement(
-                df_data, ['Mock_1', 'Mock_2', 'Mock_3'])
+                df_data, ['Fz','Cz'])
             tbr_df = da.calculate_tbr(
-                df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
-            tar_df = da.calculate_tar(df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4'], [
-                                      'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
-            beta_df = da.get_beta(df_data, ['Mock_1', 'Mock_2', 'Mock_3', 'Mock_4', 'Mock_5', 'Mock_6', 'Mock_7', 'Mock_8'])
+                df_data, ['Fz', 'C3', 'Cz', 'C4', 'Pz', 'PO7', 'Oz', 'PO8'])
+            tar_df = da.calculate_tar(df_data, ['Fz'], ['Pz', 'PO7', 'Oz', 'PO8'])
+            beta_df = da.get_beta(df_data, ['Fz', 'C3', 'Cz', 'C4', 'Pz', 'PO7', 'Oz', 'PO8'])
             accuracy = int(da.calculate_accuracy(df_data) * 100)
             running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
-                df_data, window_size=3)
+            df_data, window_size=3)
 
             BASE_DIR = Path(__file__).resolve().parent.parent
             FILE_PATH = BASE_DIR / "games" / "game_state.json"

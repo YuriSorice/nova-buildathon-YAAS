@@ -78,6 +78,7 @@ def run_pipeline():
 
 def run_pipeline_real():
     python_exe = sys.executable
+    print("RUNNING REAL PIPELINE")
 
     # Define your folders so Python knows exactly where everything is
     base_dir = Path(__file__).resolve().parent

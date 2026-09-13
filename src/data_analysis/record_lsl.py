@@ -11,20 +11,20 @@ from pathlib import Path
 def record_eeg_stream(output_filename="lsl_eeg_recording_raw.fif", stop_flag_path="data_analysis/stop_recording.txt"):
     """Uses a StreamInlet to place incoming data chunks from lsl into a file for offline processing."""
     print("Searching for LSL EEG Stream...")
-    streams = resolve_byprop('type', 'EEG', timeout=5.0)
+    all_streams = resolve_streams(wait_time=5.0)
 
+    # Filter out any stream that has 'mock' in its name (case-insensitive)
+    valid_streams = [s for s in all_streams if 'mock' not in s.name().lower()]
+    valid_streams = [s for s in valid_streams if 'Mock' not in s.name().lower()]
 
-    if not streams:
-        all_streams = resolve_streams()
-        if all_streams:
-            streams = [all_streams[0]]
-            print(f"No eeg tagged stream found, falling back to: {streams[0].name()}")
-        else:
-            print("Error: no lsl streams found on network.")
-            print("Ensure ANT Neuro or g.tec software is running and broadcasting.")
-            sys.exit(1)
+    # If no valid streams are found, crash immediately
+    if not valid_streams:
+        print("\n[FATAL ERROR] No valid (non-mock) LSL streams found on network.")
+        print("Ensure your actual EEG software is running and broadcasting.")
+        sys.exit(1)
 
-    stream_info = streams[0]
+    # Connect to the first valid stream found
+    stream_info = valid_streams[0]
     print(f"Connected to stream: {stream_info.name()} with SourceID: {stream_info.source_id()}")
 
     inlet = StreamInlet(stream_info, max_buflen=360, max_chunklen=512)
