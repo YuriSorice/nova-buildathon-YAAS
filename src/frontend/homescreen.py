@@ -10,13 +10,13 @@ import matplotlib
 matplotlib.use("TkAgg")  # forces Matplotlib to render inside Tkinter
 
 project_root = Path(__file__).resolve().parents[2]
+src_folder = project_root / "src"
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+if str(src_folder) not in sys.path:
+    sys.path.insert(0, str(src_folder))
 
-import src.data_analysis.analyze_data as da  # Import your data analysis module
-
-
-focus_ratio = 1.0  # Global variable to hold the focus ratio for feedback
+import data_analysis.analyze_data as da  # Import your data analysis module
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -45,11 +45,6 @@ class FocusApp(ctk.CTk):
             self.tab_results, fg_color="transparent")
         self.scrollable_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # build the home screen UI
-        self.welcome_label = ctk.CTkLabel(
-            self.tab_home, text="Select game to begin your session.", font=("Comic Sans MS", 24))
-        self.welcome_label.pack(pady=(40, 20))
-
         # add explanation for the game on the home tab
         self.explanation_frame = ctk.CTkFrame(
             self.tab_home, corner_radius=15, fg_color="#1e3a3e")
@@ -71,7 +66,17 @@ class FocusApp(ctk.CTk):
             "Comic Sans MS", 18), justify="left", anchor="w")
         self.explanation_body.pack(pady=(5, 15), padx=30, fill="x")
 
-        # create three distinct buttons.
+        # build the home screen welcome UI
+        self.welcome_label = ctk.CTkLabel(
+            self.tab_home, text="Select 'Calibration' to begin your session.", font=("Comic Sans MS", 24))
+        self.welcome_label.pack(pady=(20, 20))
+
+        # create calibration button
+        self.calibration_btn = ctk.CTkButton(self.tab_home, text="Calibration (60s)", width=200, height=80, font=(
+            "Comic Sans MS", 20, "bold"), fg_color="#F39C12", hover_color="#D68910", command=self.start_calibration)
+        self.calibration_btn.pack(pady=(10, 20))
+
+        # create game launch button.
         self.btn_game1 = ctk.CTkButton(self.tab_home, text="Launch N-Back Game", width=200,
                                        height=80, command=self.start_game_1, font=("Comic Sans MS", 20, "bold"), fg_color="#50B5CA")
         self.btn_game1.pack(pady=20)
@@ -87,14 +92,35 @@ class FocusApp(ctk.CTk):
 
         self.game_process = None  # Variable to track the running game
 
+    def start_calibration(self):
+        self.is_calibration_run = True
+        self.calibration_btn.configure(state="disabled", text="Calibrating...")
+        self.btn_game1.configure(state="disabled")
+
+        project_root = Path(__file__).resolve().parent[2]
+        src_folder = project_root / "src"
+
+        python_command = "from run_pipeline import run_baseline; run_baseline()"
+
+        # passes a "calibration" argument to game script so it knows to run the 60s version
+        self.game_process = subprocess.Popen(
+            [sys.executable, "-c", python_command], cwd=str(src_folder))
+
+        self.check_game_status()
+
     # independent Observer Methods
     def start_game_1(self):
+        self.is_calibration_run = False
+        self.calibration_btn.configure(state="disabled")
         self.btn_game1.configure(state="disabled", text="Game Running...")
 
         project_root = Path(__file__).resolve().parents[2]
-        game_path = project_root / "src" / "games" / "nback.py"
+        src_folder = project_root / "src"
+        python_command = "from run_pipeline import run_pipeline; run_pipeline('synced_data_alan_focused.csv')"
+
+        # runs normal game
         self.game_process = subprocess.Popen(
-            [sys.executable, str(game_path)], cwd=str(project_root))
+            [sys.executable, "-c", python_command], cwd=str(src_folder))
 
         self.check_game_status()
 
@@ -105,8 +131,30 @@ class FocusApp(ctk.CTk):
             self.after(500, self.check_game_status)
         else:
             # The game closed! Reset the button and process data
-            self.btn_game1.configure(state="normal", text="Launch Game 1")
-            self.process_and_display_data()
+            self.calibration_btn.configure(
+                state="normal", text="Calibration (60s)")
+            self.btn_game1.configure(state="normal", text="Launch N-Back Game")
+            if self.is_calibration_run:
+                self.show_calibration_complete()
+            else:
+                self.process_and_display_data()
+
+    def show_calibration_complete(self):
+        # switch to results
+        self.tab.set("Results")
+
+        # clear placeholders
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+
+        prompt_label = ctk.CTkLabel(
+            self.scrollable_frame, text="Calibration Complete.\nBaseline recorded.\nYou may begin the real test.", font=("Comic Sans MS", 24))
+        prompt_label.pack(pady=(100, 30))
+
+        # Button to return to home
+        return_btn = ctk.CTkButton(self.scrollable_frame, text="Return to Home Tab", font=(
+            "Comic Sans MS", 20, "bold"), width=250, height=60, fg_color="#50B5CA", command=lambda: self.tabs.set("Home"))
+        return_btn.pack(pady=20)
 
     def build_results(self, game_score=None, running_accuracy=None, rolling_average_accuracy=None, tei=None, tbr=None, tar=None):
         # clear previous results
@@ -128,12 +176,11 @@ class FocusApp(ctk.CTk):
         game_stats_side.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
         ctk.CTkLabel(game_stats_side, text="Game Performance", font=(
-            "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
+            "Comic Sans MS", 20, "bold")).pack(pady=(15, 1))
+        ctk.CTkLabel(game_stats_side, text="", font=(
+            "Comic Sans MS", 16)).pack(pady=(2, 10))
         ctk.CTkLabel(game_stats_side, text=f"Accuracy: {game_score}%", font=(
             "Comic Sans MS", 16)).pack(pady=2)
-        ctk.CTkLabel(game_stats_side, text="Reaction Time: 1.2s", font=(
-            # Placeholder for reaction time
-            "Comic Sans MS", 16)).pack(pady=(2, 15))
 
         # build EEG analysis side
         eeg_analysis_side = ctk.CTkFrame(
@@ -144,13 +191,13 @@ class FocusApp(ctk.CTk):
         # build EEG analysis side
         ctk.CTkLabel(eeg_analysis_side, text="Your Focus", font=(
             "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
-        ctk.CTkLabel(eeg_analysis_side, text=f"Task Engagement Index: {tei["tei"].mean()}", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Task Engagement Index: {round(tei["tei"].mean(), 3)}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=2)
-        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Beta Ratio: {tbr["tbr"].mean()}", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Beta Ratio: {round(tbr["tbr"].mean(), 3)}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=2)
-        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Alpha Ratio: {tar["tar"].mean()}", font=(
+        ctk.CTkLabel(eeg_analysis_side, text=f"Theta/Alpha Ratio: {round(tar["tar"].mean(), 3)}", font=(
             # Placeholder for concentration level
             "Comic Sans MS", 16)).pack(pady=(2, 15))
 
@@ -159,16 +206,28 @@ class FocusApp(ctk.CTk):
             self.scrollable_frame, corner_radius=15, fg_color="#1e3a3e")
         user_feedback.pack(fill="x", padx=20, pady=20)
 
-        theta_beta_ratio = focus_ratio if focus_ratio is not None else 0.0
-        if theta_beta_ratio > 0.5:
-            feedback_text = "You... completed it... I guess. Next time, remember to use the keys. Your EEG data shows elevated Alpha waves, which may indicate a relaxed or distracted state. Consider focusing more during the game."
-        else:
-            feedback_text = "Gotta admit, you did much better than the last guy. Your EEG data indicates a high level of Beta waves, suggesting active engagement and focus during the game. Keep up the good work!"
+        feedback_text = (
+            "You are probably wondering what these waves and ratios entail. \n"
+            "The Theta Waves are representative of daydreaming, fatigue, or drowsiness. \n"
+            "The Beta Waves are representative of active concentration. \n"
+            "The Alpha Waves are representative of a relaxed or disengaged state. \n"
+            "By combining these different wavelengths together, we are able to construct educated stats. \n"
+            "--------------------------------------------------------------------- \n"
+            "A high Theta/Beta ratio indicates that the brain is struggling with active concentration or is fatigued. \n"
+            "A high Theta/Alpha ratio indicates that the brain is working hard. \n"
+            "Now that you have an understanding of the markers, we can look at how this affects YOU."
+        )
 
-        ctk.CTkLabel(user_feedback, text="What it all means:", font=(
+        ctk.CTkLabel(user_feedback, text="What this data means:", font=(
             "Comic Sans MS", 20, "bold")).pack(pady=(15, 5))
-        ctk.CTkLabel(user_feedback, text=feedback_text, font=(
-            "Comic Sans MS", 16), wraplength=800).pack(pady=15, padx=15)
+        feedback_box = ctk.CTkTextbox(user_feedback, font=(
+            "Comic Sans MS", 16), width=800, height=320, fg_color="transparent", wrap="word")
+        feedback_box.pack(pady=15, padx=15)
+        feedback_box.insert("0.0", feedback_text)
+        feedback_box.tag_config("center", justify="center")
+        feedback_box.tag_add("center", "1.0", "end")
+        feedback_box._textbox.configure(spacing1=8, spacing2=8, spacing3=8)
+        feedback_box.configure(state="disabled")
 
         # build graph display section
         graph_frame1 = ctk.CTkFrame(
@@ -222,14 +281,14 @@ class FocusApp(ctk.CTk):
             # focus_level = analyze_session("eeg_results.json")
 
             # Fetch the game session data
-            df_data = da.fetch_synced_data("synced_data_convo_with_yuri.csv")
+            df_data = da.fetch_synced_data("synced_data_alan_focused.csv")
             print(df_data)
             tei_df = da.calculate_task_engagement(df_data)
             tbr_df = da.calculate_tbr(
                 df_data, ['Fz', 'C3', 'C4', 'Cz', 'Pz', 'PO7', 'PO8', 'Oz'])
             tar_df = da.calculate_tar(df_data, ['Fz', 'C3', 'C4', 'Cz'], [
                                       'PO7', 'PO8', 'Oz', 'Pz'])
-            accuracy = da.calculate_accuracy(df_data) * 100
+            accuracy = int(da.calculate_accuracy(df_data) * 100)
             running_accuracy_df = da.running_accuracy(df_data)
             rolling_average_accuracy_df = da.rolling_average_accuracy(
                 df_data, window_size=3)
